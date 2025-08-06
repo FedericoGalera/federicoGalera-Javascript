@@ -69,7 +69,7 @@ function alimentar() {
             break;
     }
 
-    // Aplicamos los límites a las variables después del switch ---
+    // Aplicamos los límites a las variables después del switch 
     if (hambre < 0) {
         hambre = 0; // No puede tener hambre negativa
     }
