@@ -1,5 +1,5 @@
 <h1 align="center">Hola 👋, soy Federico Galera</h1>
-<h3 align="center">Estudiante de Coderhouse Comisión 73490</h3>
+<h3 align="center">Estudiante de Coderhouse Comisión 80785</h3>
 
 - 🔭 Estoy trabajando en **mis entregas**
 
