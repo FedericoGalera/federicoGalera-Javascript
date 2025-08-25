@@ -22,12 +22,70 @@
 
     <main class="container">
         <h1>Bienvenidos</h1>
-            <p>
-        Este es un simulador de una mascota virtual interactiva. El objetivo es cuidar de tu Mascota
-        respondiendo a sus necesidades básicas como hambre y felicidad a través de la consola.
-        Deberás alimentarlo y jugar con él para mantenerlo saludable y contento.
-    </p>
-        </main>
+        <p>
+            Este es un simulador de una mascota virtual interactiva. El objetivo es cuidar de tu Mascota
+            respondiendo a sus necesidades básicas como hambre y felicidad. Alimenta y juega usando los botones,
+            observa las barras de estado y guarda tu progreso automáticamente.
+        </p>
+
+        <!-- Panel de Juego -->
+        <section class="game card">
+            <div class="row">
+                <div class="col">
+                    <h2 class="subtitle">Crear / continuar partida</h2>
+                    <div class="form-row">
+                        <input id="nombreInput" type="text" placeholder="Nombre de la mascota (ej: Pixel)" />
+                        <button id="btnNueva" class="btn">Nueva partida</button>
+                        <button id="btnCargar" class="btn warn">Cargar</button>
+                        <button id="btnBorrar" class="btn danger">Borrar guardado</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="game" class="game-panel" aria-live="polite">
+                <div class="row">
+                    <div class="col">
+                        <h2 id="tituloMascota" class="subtitle">Mascota</h2>
+
+                        <div class="stat">
+                            <div class="label">Salud: <strong id="saludLabel">0</strong>/100</div>
+                            <div class="bar"><span id="saludBar"></span></div>
+                        </div>
+
+                        <div class="stat">
+                            <div class="label">Hambre: <strong id="hambreLabel">0</strong>/<span id="hambreMaxLabel">20</span></div>
+                            <div class="bar"><span id="hambreBar"></span></div>
+                        </div>
+
+                        <div class="stat">
+                            <div class="label">Felicidad: <strong id="felicidadLabel">0</strong>/<span id="felicidadMaxLabel">20</span></div>
+                            <div class="bar"><span id="felicidadBar"></span></div>
+                        </div>
+
+                        <div class="stat">
+                            Bienestar total: <strong id="scoreLabel">0</strong>
+                        </div>
+
+                        <div class="chips" id="chips"></div>
+                    </div>
+
+                    <div class="col">
+                        <h2 class="subtitle">Acciones</h2>
+                        <div class="actions">
+                            <button class="btn" id="btnJugar">Jugar</button>
+                            <button class="btn" id="btnPasar">Pasar tiempo</button>
+                        </div>
+
+                        <h3 class="subtitle small">Alimentar</h3>
+                        <div id="comidas" class="actions wrap"></div>
+
+                        <h3 class="subtitle small">Eventos</h3>
+                        <div class="log" id="log" aria-live="polite"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
 
     <footer class="footer">
         <div class="container">
