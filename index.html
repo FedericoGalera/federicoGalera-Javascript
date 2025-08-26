@@ -25,7 +25,7 @@
         <p>
             Este es un simulador de una mascota virtual interactiva. El objetivo es cuidar de tu Mascota
             respondiendo a sus necesidades básicas como hambre y felicidad. Alimenta y juega usando los botones,
-            observa las barras de estado y guarda tu progreso automáticamente.
+            observa las barras de estado. Tu progreso se guarda automáticamente.
         </p>
 
         <!-- Panel de Juego -->
@@ -36,13 +36,16 @@
                     <div class="form-row">
                         <input id="nombreInput" type="text" placeholder="Nombre de la mascota (ej: Pixel)" />
                         <button id="btnNueva" class="btn">Nueva partida</button>
-                        <button id="btnCargar" class="btn warn">Cargar</button>
+                        <!-- Eliminado: <button id="btnCargar" class="btn warn">Cargar</button> -->
                         <button id="btnBorrar" class="btn danger">Borrar guardado</button>
                     </div>
+                    <p id="hintUnica" class="muted" style="margin-top:8px;">
+                        Solo puede existir 1 partida a la vez. Si ya hay una activa, se cargará automáticamente.
+                    </p>
                 </div>
             </div>
 
-            <div id="game" class="game-panel" aria-live="polite">
+            <div id="game" class="game-panel" aria-live="polite" style="display:none;">
                 <div class="row">
                     <div class="col">
                         <h2 id="tituloMascota" class="subtitle">Mascota</h2>
@@ -89,7 +92,7 @@
 
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2025 Tu Empresa. Todos los derechos reservados.</p>
+            <p>&copy; 2025 Feyoox. Todos los derechos reservados.</p>
             <div class="social-links">
                 <a href="#">Twitter</a>
                 <a href="#">Instagram</a>
