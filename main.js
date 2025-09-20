@@ -21,7 +21,7 @@ const CONFIG = {
   // Economía
   dineroInicial: 100,
   umbralSalud: 60,
-  umbralHambreMax: 5,
+  umbralHambreMax: 10,
   umbralFelicidadMin: 10,
   recompensaBase: 30,    
   recompensaBonusScore: 25 
