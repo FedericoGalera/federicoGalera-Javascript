@@ -87,9 +87,9 @@ const CONFIG = {
   tickSegundos: 10,
   
   // Economía
-  dineroInicial: 50,
-  recompensaBase: 18,
-  recompensaBonusScore: 15
+  dineroInicial: 100,
+  recompensaBase: 30,
+  recompensaBonusScore: 25
 };
 ```
 Podés modificar valores para ajustar la dificultad y la economía.
