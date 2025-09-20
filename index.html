@@ -1,11 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <!--
-    Tamagochi + PokeAPI + Economía
-    - Interactividad en main.js
-    - Librerías: Toastify (toasts) y SweetAlert2 (confirmaciones)
-  -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Feyoox - Tamagochi</title>
@@ -49,17 +44,21 @@
         <div class="col">
           <h2 class="subtitle">Crear / Continuar partida</h2>
 
-          <!-- UI de creación (solo si NO hay partida) -->
-          <div class="form-row" id="formCreacion">
-            <select id="pokemonSelect" aria-label="Selecciona un Pokémon"></select>
-            <img id="pokemonPreview" class="pokemon-img" alt="Vista previa Pokémon" style="display:none;" />
-            <button id="btnNueva" class="btn">Nueva partida</button>
-          </div>
+<!-- Formulario de creación -->
+<div id="formCreacion" class="form-row">
+  <div class="form-left">
+    <select id="pokemonSelect" aria-label="Selecciona un Pokémon"></select>
+    <img id="pokemonPreview" class="pokemon-img" src="" alt="Vista previa Pokémon" style="display:none;"/>
+    <button id="btnNueva" class="btn">Nueva partida</button>
+  </div>
+  <button id="btnInstrucciones" class="btn warn">Instrucciones</button>
+</div>
 
-          <!-- Solo borrar (si hay partida) -->
-          <div class="form-row" id="formBorrar" style="display:none;">
-            <button id="btnBorrar" class="btn danger">Borrar guardado</button>
-          </div>
+<!-- Solo borrar guardado (se muestra si hay partida) -->
+<div id="formBorrar" class="form-row" style="display:none;">
+  <button id="btnBorrar" class="btn danger">Borrar guardado</button>
+  <button id="btnInstruccionesBorrar" class="btn warn">Instrucciones</button>
+</div>
 
           <p class="muted" style="margin-top:8px;">
             Una partida a la vez. Si existe guardado, se carga automáticamente.

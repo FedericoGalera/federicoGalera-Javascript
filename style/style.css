@@ -210,6 +210,27 @@ select#pokemonSelect:focus {
 .qty-btn:hover { filter: brightness(1.1); }
 .qty-btn:active { transform: translateY(1px) scale(0.98); }
 
+/* Botón de instrucciones */
+.btn.warn { background:#2d3748; border:1px solid #3b475c; }
+.btn.warn:hover { filter: brightness(1.12); }
+.push-right { margin-left: auto; }
+
+/* Alineación de filas de botones en creación/borrado */
+#formCreacion,
+#formBorrar {
+  display: flex;
+  justify-content: space-between; /* izquierda <-> derecha */
+  align-items: center;            /* misma altura */
+  gap: 10px;
+}
+
+#formCreacion .form-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 /* ============================================================================
    Stats y barras
    ========================================================================== */
