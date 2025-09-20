@@ -91,6 +91,7 @@ const CONFIG = {
   recompensaBase: 18,
   recompensaBonusScore: 15
 };
+```
 Podés modificar valores para ajustar la dificultad y la economía.
 
 📌 Próximas mejoras
