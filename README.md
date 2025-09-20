@@ -91,3 +91,24 @@ const CONFIG = {
   recompensaBase: 18,
   recompensaBonusScore: 15
 };
+Podés modificar valores para ajustar la dificultad y la economía.
+
+📌 Próximas mejoras
+
+Ofertas especiales en la tienda.
+
+Misiones y logros diarios.
+
+Filtros por región (Kanto, Johto, Hoenn).
+
+Historial de compras y estadísticas.
+
+Versión PWA para jugar offline.
+
+✍️ Autor
+
+👨‍💻 Federico Galera
+📧 Contacto: angelrossanigo@gmail.com
+
+🌐 LinkedIn
+ · Instagram
