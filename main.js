@@ -23,8 +23,8 @@ const CONFIG = {
   umbralSalud: 80,
   umbralHambreMax: 8,
   umbralFelicidadMin: 12,
-  recompensaBase: 18,    
-  recompensaBonusScore: 15 
+  recompensaBase: 28,    
+  recompensaBonusScore: 25 
 };
 
 // PokeAPI endpoints
@@ -241,7 +241,7 @@ function pagarRecompensaSiCorresponde() {
   if (okSalud && okHambre && okFelicidad) {
     let ganancia = CONFIG.recompensaBase;
     const score = scoreBienestar();
-    if (score > 85) ganancia += CONFIG.recompensaBonusScore;
+    if (score > 65) ganancia += CONFIG.recompensaBonusScore;
     pet.money += ganancia;
     log(`Buen cuidado: +$${ganancia}. Dinero actual: $${pet.money}.`);
   }
