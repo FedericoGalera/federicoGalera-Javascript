@@ -1,19 +1,93 @@
-<h1 align="center">Hola 👋, soy Federico Galera</h1>
-<h3 align="center">Estudiante de Coderhouse Comisión 80785</h3>
+<h1 align="center">🐾 Tamagochi + PokeAPI</h1>
+<h3 align="center">Proyecto final - Coderhouse Comisión 80785</h3>
 
-- 🔭 Estoy trabajando en **mis entregas**
+---
 
-- ⚡ Dato curioso **soy fan del Anime**
+## 📖 Descripción
 
-- 🌱 Actualmente estoy aprendiendo sobre **JavaScript**
+Simulador de mascota virtual inspirado en el clásico **Tamagotchi**, potenciado con **PokeAPI**.  
+El jugador puede elegir un **Pokémon de la Generación 1 a la 3**, cuidarlo, alimentarlo con **bayas** y administrar un sistema de **economía** con inventario, dinero, tienda y carrito de compras.
 
-- 📫 Me podes encontrar a mi mail **angelrossanigo@gmail.com**
+Este proyecto cumple con los criterios de la cursada de **JavaScript en Coderhouse**, incluyendo:
 
-<h3 align="left">Contactame!:</h3>
-<p align="left">
-<a href="https://linkedin.com/in/federico galera" target="blank"><img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/linked-in-alt.svg" alt="federico galera" height="30" width="40" /></a>
-<a href="https://instagram.com/fede.galera.rossa" target="blank"><img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/instagram.svg" alt="fede.galera.rossa" height="30" width="40" /></a>
-</p>
+- Consumo de **datos remotos** (PokeAPI).
+- Generación de **HTML dinámico** desde JavaScript.
+- Uso de **librerías externas** (Toastify, SweetAlert2).
+- Flujo de negocio completo y persistente con `localStorage`.
 
-<h3 align="left">Lenguajes y Herramientas:</h3>
-<p align="left"> <a href="https://www.gnu.org/software/bash/" target="_blank" rel="noreferrer"> <img src="https://www.vectorlogo.zone/logos/gnu_bash/gnu_bash-icon.svg" alt="bash" width="40" height="40"/> </a> <a href="https://getbootstrap.com" target="_blank" rel="noreferrer"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/bootstrap/bootstrap-plain-wordmark.svg" alt="bootstrap" width="40" height="40"/> </a> <a href="https://www.w3schools.com/css/" target="_blank" rel="noreferrer"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/css3/css3-original-wordmark.svg" alt="css3" width="40" height="40"/> </a> <a href="https://git-scm.com/" target="_blank" rel="noreferrer"> <img src="https://www.vectorlogo.zone/logos/git-scm/git-scm-icon.svg" alt="git" width="40" height="40"/> </a> <a href="https://grafana.com" target="_blank" rel="noreferrer"> <img src="https://www.vectorlogo.zone/logos/grafana/grafana-icon.svg" alt="grafana" width="40" height="40"/> </a> <a href="https://www.w3.org/html/" target="_blank" rel="noreferrer"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/html5/html5-original-wordmark.svg" alt="html5" width="40" height="40"/> </a> <a href="https://mariadb.org/" target="_blank" rel="noreferrer"> <img src="https://www.vectorlogo.zone/logos/mariadb/mariadb-icon.svg" alt="mariadb" width="40" height="40"/> </a> <a href="https://www.mysql.com/" target="_blank" rel="noreferrer"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/mysql/mysql-original-wordmark.svg" alt="mysql" width="40" height="40"/> </a> <a href="https://postman.com" target="_blank" rel="noreferrer"> <img src="https://www.vectorlogo.zone/logos/getpostman/getpostman-icon.svg" alt="postman" width="40" height="40"/> </a> <a href="https://sass-lang.com" target="_blank" rel="noreferrer"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/sass/sass-original.svg" alt="sass" width="40" height="40"/> </a> </p>
+---
+
+## 🚀 Funcionalidades principales
+
+- 🎮 **Mascota virtual Pokémon**  
+  Seleccioná tu Pokémon con menú desplegable (preview de sprite oficial).  
+
+- 🥗 **Bayas dinámicas**  
+  Cargadas en vivo desde PokeAPI, con efectos de juego (saciedad y felicidad).  
+
+- 💰 **Economía integrada**  
+  - Dinero inicial + ingreso pasivo por buen cuidado.  
+  - Inventario inicial de bayas.  
+  - Tienda con precios ajustados a la efectividad de cada baya.  
+
+- 🛒 **Carrito de compras**  
+  - Agregar y quitar bayas antes de confirmar.  
+  - Total en tiempo real.  
+  - Confirmación de compra con SweetAlert2.  
+
+- 📦 **Persistencia**  
+  Guardado único en `localStorage`. Si existe partida, se carga automáticamente.  
+
+- ⚡ **Interactividad mejorada**  
+  - **Toastify** para notificaciones rápidas.  
+  - **SweetAlert2** para confirmaciones elegantes.  
+  - Paneles reactivos con `aria-live` y accesibilidad básica.  
+
+---
+
+## 🧩 Tecnologías usadas
+
+- **HTML5** y **CSS3**  
+- **JavaScript (ES6+)**  
+- **PokeAPI** (Pokémon + berries)  
+- **Toastify** (toasts)  
+- **SweetAlert2** (modales)  
+
+---
+
+## 📂 Estructura del proyecto
+
+/
+├── index.html # Maquetado principal
+├── style/
+│ └── style.css # Estilos oscuros, responsive
+├── main.js # Lógica del juego (JS)
+└── media/ # Logo, fondo, recursos opcionales
+
+---
+
+## ▶️ Cómo probarlo
+
+1. Clonar el repositorio o descargarlo.  
+2. Abrir `index.html` en el navegador.  
+3. (Opcional) Usar **Live Server** en VS Code para auto-recarga.  
+
+> No requiere instalación de dependencias: librerías externas vía CDN.
+
+---
+
+## ⚙️ Configuración rápida (en `main.js`)
+
+```js
+const CONFIG = {
+  hambrePorJugar: 3,
+  hambrePorTick: 2,
+  felicidadPorTick: -1,
+  saludCastigo: 10,
+  tickSegundos: 10,
+  
+  // Economía
+  dineroInicial: 50,
+  recompensaBase: 18,
+  recompensaBonusScore: 15
+};
