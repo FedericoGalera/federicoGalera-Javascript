@@ -19,11 +19,11 @@ const CONFIG = {
   tickSegundos: 10,
 
   // Economía
-  dineroInicial: 50,
-  umbralSalud: 80,
-  umbralHambreMax: 8,
-  umbralFelicidadMin: 12,
-  recompensaBase: 28,    
+  dineroInicial: 100,
+  umbralSalud: 60,
+  umbralHambreMax: 5,
+  umbralFelicidadMin: 10,
+  recompensaBase: 30,    
   recompensaBonusScore: 25 
 };
 
