@@ -20,6 +20,8 @@
   --vh-offset-mobile:210px;
 }
 
+:root{ --appvh: 100vh; }
+
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%}
 body{
@@ -83,7 +85,11 @@ h1{font-size:var(--fs-1);text-align:center;color:#fff;margin-bottom:.35rem}
 body.compact-game main{padding:.6rem 0}
 body.compact-game .intro, body.compact-game h1{display:none}
 body.compact-game .game.card{padding:.7rem}
-body.compact-game .game-grid{height:calc(100vh - var(--vh-offset-desktop)); overflow:hidden}
+/* Usa --appvh para corregir 100vh móvil, y sólo en desktop ocultamos overflow */
+body.compact-game .game-grid{
+  height:calc(var(--appvh, 100vh) - var(--vh-offset-desktop));
+  overflow:hidden;
+}
 .game-panel{margin-top:6px}
 
 /* =================== Grilla =================== */
@@ -104,14 +110,14 @@ body.compact-game .game-grid{height:calc(100vh - var(--vh-offset-desktop)); over
   .game-grid{grid-template-columns: 1fr 1fr}
   .col-events{grid-column: 1 / -1}
 }
-@media (max-width:1024px){
-  .game-grid{grid-template-columns: 1fr}
-  body.compact-game .game-grid{height:calc(100vh - var(--vh-offset-desktop))}
-}
 @media (max-width:768px){
   .logo img{height:52px}
   .game-grid{grid-template-columns: 1fr}
-  body.compact-game .game-grid{height:calc(100vh - var(--vh-offset-mobile))}
+  /* En mobile NO forzamos altura: dejamos que el contenido fluya */
+  body.compact-game .game-grid{
+    height:auto;
+    overflow:visible;
+  }
   .subtitle{font-size:1.02rem}
 }
 
@@ -162,17 +168,17 @@ select#pokemonSelect:focus{border-color:var(--accent);box-shadow:0 0 0 4px color
 .chip{background:#1f2937;padding:6px 10px;border-radius:999px;font-size:12px;color:#cbd5e1;border:1px solid var(--border)}
 
 /* =================== Sprite principal (debajo de stats) =================== */
-/* Preview chico por defecto; sprite principal centrado y más grande */
 .pokemon-img{width:92px;height:92px;object-fit:contain;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:10px;padding:6px}
 .sprite-wrap{
   display:grid;               /* centrado robusto */
   place-items:center;
-  margin-top:8px;
+  margin-top:clamp(18px, 3.5vh, 36px);
+  padding-block:4px;
 }
 #mascotaImg{
   width:clamp(150px,18vw,220px);
   height:clamp(150px,18vw,220px);
-  margin:0 auto;              /* por si el layout cambia */
+  margin:0 auto;
 }
 @media (max-width:768px){
   #mascotaImg{width:170px;height:170px}
@@ -210,14 +216,17 @@ select#pokemonSelect:focus{border-color:var(--accent);box-shadow:0 0 0 4px color
 }
 
 /* =================== Log de eventos =================== */
-/* Mostramos SIEMPRE los 10 eventos sin scroll interno */
+/* Desktop: sin scroll interno; Mobile: límite para no romper layout */
 .log{
   font-size:14px;line-height:1.45;
   background:var(--bg-elev-2);border:1px solid var(--border);
   padding:12px;border-radius:10px;
-  max-height:none;             /* sin tope */
-  overflow:visible;            /* sin scroll interno */
+  max-height:none;            /* desktop */
+  overflow:visible;
   min-height:0;
+}
+@media (max-width:900px){
+  .log{ max-height:36vh; overflow:auto; } /* mobile/tablet */
 }
 
 /* =================== Footer =================== */
@@ -225,7 +234,7 @@ select#pokemonSelect:focus{border-color:var(--accent);box-shadow:0 0 0 4px color
 .footer p{margin-bottom:.6rem;color:#a0a0a0;font-size:.9rem}
 .social-links a{color:#a0a0a0;margin:0 .75rem;text-decoration:none;font-weight:600}
 .social-links a:hover{color:#ffffff}
-
+  
 /* =================== SweetAlert oscuro =================== */
 .swal2-container.swal2-backdrop-show,
 .swal2-container.swal2-noanimation{background:rgba(0,0,0,.82)!important}

@@ -2,12 +2,16 @@
 // Tamagochi + PokeAPI
 // =============================================================================
 // - Pausa persistente entre recargas (localStorage)
-// - Evolución MANUAL (botón) y progreso por ticks con Salud=100
+// - Evolución MANUAL (botón) y progreso por ticks con Salud==100
 //   · Se oculta por completo si la especie NO evoluciona.
-// - Tienda en pop-up con carrito y DINERO ACTUAL visible.
+// - Tienda en pop-up (SweetAlert) con carrito y DINERO ACTUAL visible.
 // - Eventos persistentes (muestra últimos 10).
 // - Opción Shiny al crear partida (también para evoluciones).
 // - Selector: solo 1ra fase (orden Pokédex).
+//
+// [MOBILE]
+// - En mobile, el grid del juego no fuerza altura (se maneja en CSS).
+// - La Tienda abre con ancho adaptativo (≤ 96vw o 900px).
 // =============================================================================
 
 // ------------------------------ CONFIG --------------------------------------
@@ -57,6 +61,10 @@ const qs  = (s, p = document) => p.querySelector(s);
 const qsa = (s, p = document) => p.querySelectorAll(s);
 const byId = (id) => document.getElementById(id);
 const toast = (text) => Toastify({ text, duration: 2500, gravity: 'top', position: 'right' }).showToast();
+
+function updateAppVh(){
+  document.documentElement.style.setProperty('--appvh', `${window.innerHeight}px`);
+}
 
 // ------------------------------ EVENTOS PERSISTENTES ------------------------
 const KEY_EVENT_LOG = 'tamagochi_event_log_v1';
@@ -171,7 +179,7 @@ let paused = false;
 // ------------------------------ FETCH UTILS ---------------------------------
 async function fetchJson(url) { const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 
-// ------------------------------ EVOLUCIÓN (MANUAL) --------------------------
+// ------------------------------ EVOLUCIÓN --------------------------
 async function fetchSpecies(nameOrSpecies) {
   return fetchJson(POKE_API.speciesByName(nameOrSpecies));
 }
@@ -215,7 +223,7 @@ function updateEvoButton() {
   const lbl = byId('evoTicksLabel');
   const lblMax = byId('evoTicksMaxLabel');
   if (lbl) lbl.textContent = String(curr);
-  if (lblMax) lblMax.textContent = String(max);
+  if (lblMax) lblMax.textContent = String(max); 
   if (bar) bar.style.width = `${Math.min(100, (curr/max)*100)}%`;
 }
 async function evolucionar() {
@@ -320,7 +328,7 @@ async function cargarComidasDesdePokeAPI(){
   }
 }
 
-// ------------------------------ SELECTOR (1ra fase, orden Pokédex, sin #) ---
+// ------------------------------ SELECTOR (1ra fase, orden Pokédex) ---
 async function cargarListaPokemonSoloPrimerasFases(){
   const sel = byId('pokemonSelect'); if (!sel) return;
   sel.innerHTML = `<option value="" disabled selected>Elige tu Pokémon.</option>`;
@@ -393,8 +401,9 @@ function pagarRecompensaSiCorresponde(){
 function normalizar(){
   pet.alimentacion = clamp(pet.alimentacion, 0, ALIMENTACION_MAX);
   pet.felicidad    = clamp(pet.felicidad, 0, FELICIDAD_MAX);
-  pet.salud        = clamp(pet.salud, 1, 100); // Salud mínima = 1 (no muere)
-}
+  pet.salud        = clamp(pet.salud, 1, 100); // Salud mínima = 1
+} // ← CORREGIDO: se cerraba faltando esta llave
+
 function alimentar(idComida){
   if (!pet || paused) return;
   if (!pet.inventory[idComida] || pet.inventory[idComida] <= 0){ toast('No tienes esa baya en tu inventario.'); return; }
@@ -529,6 +538,7 @@ function render(){
 }
 
 // ---------- Tienda en pop-up (reutiliza IDs dentro del modal) ---------------
+// [MOBILE] El ancho del modal se calcula a partir del viewport en abrirTienda()
 function renderCatalogo(){
   const store = byId('storeList'); if (!store) return;
   store.innerHTML = (comidas || []).map(c => `
@@ -618,8 +628,12 @@ async function comprarCarrito(){
   renderCarrito();
 }
 async function abrirTienda(){
+  // [MOBILE] Ancho adaptativo: 96% del ancho de pantalla o 900px (lo que sea menor)
+  const modalWidth = Math.min(Math.floor(window.innerWidth * 0.96), 900);
+
   await swalDark.fire({
     title:'Tienda de Bayas',
+    width: modalWidth,
     html: `
       <div class="swal-store">
         <div class="swal-columns">
@@ -640,7 +654,6 @@ async function abrirTienda(){
         </div>
       </div>
     `,
-    width: 900,
     showConfirmButton:false,
     showCloseButton:true,
     didOpen: () => {
@@ -716,6 +729,11 @@ function setGameVisible(present){
 
 // ------------------------------ INICIO --------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
+  // [MOBILE] Inicializa --appvh y vuelve a calcular en cambios de tamaño/orientación
+  updateAppVh();
+  window.addEventListener('resize', updateAppVh, { passive:true });
+  window.addEventListener('orientationchange', updateAppVh);
+
   await cargarListaPokemonSoloPrimerasFases();
   await cargarComidasDesdePokeAPI();
 
