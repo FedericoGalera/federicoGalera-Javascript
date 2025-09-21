@@ -6,22 +6,27 @@
 // - PokeAPI (Gen 1–3), economía, tienda+carrito, "Pasar tiempo" = tick real
 // - Animaciones: idle (flotar) y happy (wiggle) en sprite
 // =============================================================================
+// CAMBIO DE MODELO: 'Hambre' -> 'Alimentación'
+// - Antes: 'hambre' era una métrica NEGATIVA que aumentaba con el tiempo y castigaba.
+// - Ahora: 'alimentación' es una métrica POSITIVA que DISMINUYE con el tiempo y
+//   debe mantenerse alta alimentando a la mascota. Todo texto y lógica se adaptan.
+// =============================================================================
 
 // ------------------------------ CONFIG --------------------------------------
-const HAMBRE_MAX = 20;
+const ALIMENTACION_MAX = 20;
 const FELICIDAD_MAX = 20;
 
 const CONFIG = {
-  hambrePorJugar: 3,      // jugar: felicidad ↑, hambre ↑
-  hambrePorTick: 2,       // por tick: hambre ↑
-  felicidadPorTick: -1,   // por tick: felicidad ↓
-  saludCastigo: 10,       // si hambre llena o felicidad vacía: salud ↓
-  tickSegundos: 10,       // intervalo del tick automático (s)
+  alimentacionPorJugar: -3,    // jugar: felicidad ↑, alimentación ↓
+  alimentacionPorTick: -2,     // por tick: alimentación ↓
+  felicidadPorTick: -1,        // por tick: felicidad ↓
+  saludCastigo: 10,            // si alimentación vacía o felicidad vacía: salud ↓
+  tickSegundos: 5,            // intervalo del tick automático (s)
 
   // Economía
   dineroInicial: 100,
   umbralSalud: 60,
-  umbralHambreMax: 10,
+  umbralAlimentacionMin: 10,
   umbralFelicidadMin: 10,
   recompensaBase: 30,
   recompensaBonusScore: 25
@@ -57,7 +62,7 @@ function pulse(el, cls, ms = 600) {
 // Snap/Diff de stats para toasts informativos al pasar tiempo
 function snapStats() {
   if (!pet) return null;
-  return { salud: pet.salud, hambre: pet.hambre, felicidad: pet.felicidad, money: pet.money };
+  return { salud: pet.salud, alimentacion: pet.alimentacion, felicidad: pet.felicidad, money: pet.money };
 }
 function diffStats(prev, curr) {
   if (!prev || !curr) return null;
@@ -65,7 +70,7 @@ function diffStats(prev, curr) {
   return {
     dMoney: sign(curr.money - prev.money),
     dSalud: sign(curr.salud - prev.salud),
-    dHambre: sign(curr.hambre - prev.hambre),
+    dAlim:  sign(curr.alimentacion - prev.alimentacion),
     dFelicidad: sign(curr.felicidad - prev.felicidad),
   };
 }
@@ -77,7 +82,7 @@ class Mascota {
     this.sprite = sprite;
 
     this.salud = 100;
-    this.hambre = 10;
+    this.alimentacion = 10;
     this.felicidad = 10;
     this.viva = true;
 
@@ -87,23 +92,47 @@ class Mascota {
 }
 
 // ------------------------------ PERSISTENCIA --------------------------------
-const KEY_SAVE      = 'tamagochi_save_unico_v6';
+const KEY_SAVE      = 'tamagochi_save_unico_v7'; // bump para aislar del v6
 const KEY_BERRIES   = 'berries_cache_v2';
 const KEY_POKELIST  = 'pokemon_list_cache_v2';
 const KEY_FIRST_RUN = 'tamagochi_first_run_shown_v1'; // para no repetir instrucciones
 
 function save(state) { localStorage.setItem(KEY_SAVE, JSON.stringify(state)); }
 function load() {
-  const raw = localStorage.getItem(KEY_SAVE);
-  if (!raw) return null;
+  // Intento 1: nuevo esquema
+  const rawNew = localStorage.getItem(KEY_SAVE);
+  if (rawNew) {
+    try {
+      const data = JSON.parse(rawNew);
+      const p = new Mascota(data.nombre, data.sprite);
+      Object.assign(p, data);
+      if (typeof p.money !== 'number') p.money = CONFIG.dineroInicial;
+      if (!p.inventory) p.inventory = {};
+      return p;
+    } catch {}
+  }
+  // Intento 2: migración desde esquema anterior (v6) con 'hambre'
+  const rawOld = localStorage.getItem('tamagochi_save_unico_v6');
+  if (!rawOld) return null;
   try {
-    const data = JSON.parse(raw);
+    const data = JSON.parse(rawOld);
     const p = new Mascota(data.nombre, data.sprite);
-    Object.assign(p, data);
-    if (typeof p.money !== 'number') p.money = CONFIG.dineroInicial;
-    if (!p.inventory) p.inventory = {};
+    // Migración: Alimentación := ALIMENTACION_MAX - hambre (inversión semántica)
+    const hambreOld = typeof data.hambre === 'number' ? clamp(data.hambre, 0, 20) : 10;
+    p.alimentacion = ALIMENTACION_MAX - hambreOld;
+    p.felicidad = typeof data.felicidad === 'number' ? data.felicidad : 10;
+    p.salud = typeof data.salud === 'number' ? data.salud : 100;
+    p.viva = data.viva !== false;
+    p.money = typeof data.money === 'number' ? data.money : CONFIG.dineroInicial;
+    p.inventory = data.inventory || {};
+    // Guardamos en el nuevo esquema
+    save(p);
+    // Limpiamos el viejo para evitar confusiones (opcional)
+    // localStorage.removeItem('tamagochi_save_unico_v6');
     return p;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 function clearSave() { localStorage.removeItem(KEY_SAVE); }
 
@@ -124,6 +153,7 @@ async function fetchJson(url) {
 }
 
 // ------------------------------ BAYAS / CATÁLOGO ----------------------------
+// En el modelo nuevo, las comidas AUMENTAN 'alimentación' (antes reducían 'hambre').
 const FIRMNESS_FACTORS = {
   'very-soft': 0.95, 'soft': 1.00, 'hard': 1.10, 'very-hard': 1.20, 'super-hard': 1.30
 };
@@ -133,17 +163,18 @@ function mapBerryToFood(berry, item) {
   const size = berry.size ?? 20;
   const totalFlavor = (berry.flavors || []).reduce((acc, f) => acc + (f.potency || 0), 0);
 
-  const dhambre    = -clamp(Math.round(size / 30) + 2, 2, 10);
-  const dfelicidad =  clamp(Math.round(totalFlavor / 12) || 1, 1, 8);
+  // Antes: dhambre negativo (reduce hambre). Ahora: dalimentacion positivo (aumenta alimentación).
+  const dalimentacion = clamp(Math.round(size / 30) + 2, 2, 10);
+  const dfelicidad   = clamp(Math.round(totalFlavor / 12) || 1, 1, 8);
 
   const firmnessName = berry.firmness?.name ?? 'soft';
-  const priceBase = 5 + (Math.abs(dhambre) * 2 + dfelicidad * 3);
+  const priceBase = 5 + (dalimentacion * 2 + dfelicidad * 3);
   const price = Math.max(5, Math.round(priceBase * (FIRMNESS_FACTORS[firmnessName] ?? 1) * growthFactor(berry.growth_time)));
 
   return {
     id: berry.name,
     label: berry.name.replace(/\b\w/g, m => m.toUpperCase()),
-    dhambre, dfelicidad,
+    dalimentacion, dfelicidad,
     msg: `¡${item.name.replace(/\b\w/g, m => m.toUpperCase())} nutritiva!`,
     sprite: item.sprites?.default || '',
     price
@@ -151,9 +182,9 @@ function mapBerryToFood(berry, item) {
 }
 
 const COMIDAS_FALLBACK = [
-  { id:'baya',     label:'Baya',     dhambre:-8, dfelicidad:+2, msg:'¡Baya saludable!',    sprite:'', price: 27 },
-  { id:'manzana',  label:'Manzana',  dhambre:-8, dfelicidad:+2, msg:'¡Manzana saludable!', sprite:'', price: 27 },
-  { id:'caramelo', label:'Caramelo', dhambre:-3, dfelicidad:+6, msg:'¡Caramelo delicioso!',sprite:'', price: 29 },
+  { id:'baya',     label:'Baya',     dalimentacion:+8, dfelicidad:+2, msg:'¡Baya saludable!',    sprite:'', price: 27 },
+  { id:'manzana',  label:'Manzana',  dalimentacion:+8, dfelicidad:+2, msg:'¡Manzana saludable!', sprite:'', price: 27 },
+  { id:'caramelo', label:'Caramelo', dalimentacion:+3, dfelicidad:+6, msg:'¡Caramelo delicioso!',sprite:'', price: 29 },
 ];
 
 async function cargarComidasDesdePokeAPI() {
@@ -162,7 +193,7 @@ async function cargarComidasDesdePokeAPI() {
   if (cached) {
     try {
       const { ts, foods } = JSON.parse(cached);
-      if (Date.now() - ts < 24 * 60 * 60 * 1000 && foods?.length) {
+      if (Date.now() - ts < 24 * 60 * 60 * 1000 && foods?.length && foods[0].dalimentacion !== undefined) {
         comidas = foods;
         precios = Object.fromEntries(comidas.map(c => [c.id, c.price]));
         renderCatalogo();
@@ -246,11 +277,11 @@ function inicializarInventario() {
 }
 
 function pagarRecompensaSiCorresponde() {
-  const okSalud     = pet.salud >= CONFIG.umbralSalud;
-  const okHambre    = pet.hambre <= CONFIG.umbralHambreMax;
-  const okFelicidad = pet.felicidad >= CONFIG.umbralFelicidadMin;
+  const okSalud        = pet.salud >= CONFIG.umbralSalud;
+  const okAlimentacion = pet.alimentacion >= CONFIG.umbralAlimentacionMin;
+  const okFelicidad    = pet.felicidad >= CONFIG.umbralFelicidadMin;
 
-  if (okSalud && okHambre && okFelicidad) {
+  if (okSalud && okAlimentacion && okFelicidad) {
     let ganancia = CONFIG.recompensaBase;
     if (scoreBienestar() > 65) ganancia += CONFIG.recompensaBonusScore;
     pet.money += ganancia;
@@ -260,9 +291,9 @@ function pagarRecompensaSiCorresponde() {
 
 // ------------------------------ LÓGICA DE JUEGO -----------------------------
 function normalizar() {
-  pet.hambre    = clamp(pet.hambre, 0, HAMBRE_MAX);
-  pet.felicidad = clamp(pet.felicidad, 0, FELICIDAD_MAX);
-  pet.salud     = clamp(pet.salud, 0, 100);
+  pet.alimentacion = clamp(pet.alimentacion, 0, ALIMENTACION_MAX);
+  pet.felicidad    = clamp(pet.felicidad, 0, FELICIDAD_MAX);
+  pet.salud        = clamp(pet.salud, 0, 100);
 }
 
 function alimentar(idComida) {
@@ -273,8 +304,8 @@ function alimentar(idComida) {
   const item = comidas.find(c => c.id === idComida);
   if (!item) { toast('Esa baya no está disponible.'); return; }
 
-  pet.hambre    += item.dhambre;
-  pet.felicidad += item.dfelicidad;
+  pet.alimentacion += item.dalimentacion;
+  pet.felicidad    += item.dfelicidad;
   pet.inventory[idComida]--;
   normalizar();
 
@@ -285,8 +316,8 @@ function alimentar(idComida) {
 }
 
 function jugar() {
-  pet.felicidad += 5;
-  pet.hambre    += CONFIG.hambrePorJugar;
+  pet.felicidad    += 5;
+  pet.alimentacion += CONFIG.alimentacionPorJugar; // negativo
   normalizar();
 
   pulse(byId('mascotaImg'), 'animate-happy', 600);
@@ -299,21 +330,21 @@ function jugar() {
 function pasarTiempo() {
   if (!pet || !pet.viva) return;
 
-  // Aumenta hambre, baja felicidad (tick natural)
-  pet.hambre    += CONFIG.hambrePorTick;
-  pet.felicidad += CONFIG.felicidadPorTick;
+  // Nuevo modelo: alimentación baja, felicidad baja
+  pet.alimentacion += CONFIG.alimentacionPorTick; // negativo
+  pet.felicidad    += CONFIG.felicidadPorTick;    // negativo
   normalizar();
 
   // Si descuidado -> castigo en salud
-  if (pet.hambre >= HAMBRE_MAX || pet.felicidad <= 0) {
+  if (pet.alimentacion <= 0 || pet.felicidad <= 0) {
     pet.salud -= CONFIG.saludCastigo;
     normalizar();
     log(`¡CUIDADO! La salud de ${pet.nombre} bajó por descuido.`);
   }
 
-  // 🔹 NUEVA LÓGICA: si está bien cuidado, recupera salud
-  if (pet.hambre <= 10 && pet.felicidad >= 10 && pet.salud < 100) {
-    pet.salud += 5; // podés ajustar cuánto regenera
+  // Si está bien cuidado, recupera salud
+  if (pet.alimentacion >= 10 && pet.felicidad >= 10 && pet.salud < 100) {
+    pet.salud += 5;
     if (pet.salud > 100) pet.salud = 100;
     log(`${pet.nombre} se siente bien cuidado y recupera salud.`);
   }
@@ -335,7 +366,7 @@ function pasarTiempo() {
 function scoreBienestar() {
   const partes = [
     pet.salud / 100,
-    1 - (pet.hambre / HAMBRE_MAX),
+    pet.alimentacion / ALIMENTACION_MAX, // antes: 1 - (hambre/HAMBRE_MAX)
     pet.felicidad / FELICIDAD_MAX
   ];
   return Math.round((partes.reduce((a,b)=>a+b,0) / partes.length) * 100);
@@ -361,7 +392,7 @@ function render() {
 
   qs('#chips').innerHTML = [
     `Salud ${pet.salud}/100`,
-    `Hambre ${pet.hambre}/${HAMBRE_MAX}`,
+    `Alimentación ${pet.alimentacion}/${ALIMENTACION_MAX}`,
     `Felicidad ${pet.felicidad}/${FELICIDAD_MAX}`
   ].map(t => `<span class="chip">${t}</span>`).join('');
 
@@ -370,9 +401,9 @@ function render() {
     qs(barSel).style.width = `${(val/max)*100}%`;
   };
   setBar('#saludLabel', '#saludBar', pet.salud, 100);
-  setBar('#hambreLabel', '#hambreBar', pet.hambre, HAMBRE_MAX);
+  setBar('#alimentacionLabel', '#alimentacionBar', pet.alimentacion, ALIMENTACION_MAX);
   setBar('#felicidadLabel', '#felicidadBar', pet.felicidad, FELICIDAD_MAX);
-  qs('#hambreMaxLabel').innerText = HAMBRE_MAX;
+  qs('#alimentacionMaxLabel').innerText = ALIMENTACION_MAX;
   qs('#felicidadMaxLabel').innerText = FELICIDAD_MAX;
   qs('#scoreLabel').innerText = scoreBienestar();
 
@@ -413,7 +444,7 @@ function renderCatalogo() {
         ${c.sprite ? `<img src="${c.sprite}" alt="${c.label}" style="width:28px;height:28px;" />` : ''}
         <strong>${c.label}</strong>
       </div>
-      <div class="muted">Saciedad: ${Math.abs(c.dhambre)} | Felicidad: ${c.dfelicidad}</div>
+      <div class="muted">Alimentación: +${c.dalimentacion} | Felicidad: +${c.dfelicidad}</div>
       <div class="price">$${c.price}</div>
       <div class="qty-controls">
         <button class="qty-btn" data-add="${c.id}">+</button>
@@ -513,17 +544,17 @@ function mostrarInstrucciones() {
       <div style="text-align:left; line-height:1.5">
         <p>
           Elegí tu <strong>Pokémon</strong> y cuidalo como una mascota virtual.
-          Con el paso del tiempo, el <strong>hambre aumenta</strong> y la <strong>felicidad disminuye</strong>.
+          Con el paso del tiempo, la <strong>alimentación disminuye</strong> y la <strong>felicidad disminuye</strong> un poco.
         </p>
         <ul style="margin-left:1.1rem">
-          <li>Alimentá con <strong>bayas</strong> para reducir el hambre y mejorar el ánimo.</li>
-          <li>Usá <strong>Jugar</strong> para subir la felicidad (incrementa un poco el hambre).</li>
+          <li>Alimentá con <strong>bayas</strong> para <strong>subir la alimentación</strong> y mejorar el ánimo.</li>
+          <li>Usá <strong>Jugar</strong> para subir la felicidad (consume algo de alimentación).</li>
           <li>El tiempo avanza automáticamente por <em>ticks</em> y también con <strong>Pasar tiempo</strong>.</li>
           <li>Si el cuidado es bueno, <strong>ganás dinero</strong> periódicamente.</li>
           <li>Invertí el dinero en la <strong>Tienda</strong> para comprar más bayas con el <strong>carrito</strong>.</li>
         </ul>
         <p class="muted" style="margin-top:.5rem">
-          Consejo: evitá que el hambre llegue al máximo o que la felicidad llegue a cero, o la salud se verá afectada.
+          <strong>Consejo: evitá que la alimentación llegue a cero o que la felicidad llegue a cero, o la salud se verá afectada.</strong>
         </p>
       </div>
     `,
@@ -571,6 +602,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     qs('#game').style.display = '';
     if (!pet.inventory) pet.inventory = {};
     if (typeof pet.money !== 'number') pet.money = CONFIG.dineroInicial;
+    // Si llega una partida antigua sin 'alimentacion', hacemos un fallback seguro
+    if (typeof pet.alimentacion !== 'number') pet.alimentacion = 10;
     render();
     iniciarTiempo();
     mostrarSoloBorrarGuardado();
@@ -578,10 +611,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     mostrarCreacion();
   }
 
-  // Botón Instrucciones (siempre disponible)
-  byId('btnInstrucciones').addEventListener('click', mostrarInstrucciones);
-
-  // Nueva partida: crea la mascota y muestra instrucciones SOLO la primera vez
+  // Nueva partida
   byId('btnNueva').addEventListener('click', async () => {
     if (load()) { toast('Ya existe una partida. Borra el guardado para crear otra.'); return; }
     const name = byId('pokemonSelect').value;
@@ -597,7 +627,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     qs('#game').style.display = '';
     render();
     iniciarTiempo();
-    log(`¡Ha nacido tu nueva mascota: ${pet.nombre}}!`);
+    log(`¡Ha nacido tu nueva mascota: ${pet.nombre}!`);
     mostrarSoloBorrarGuardado();
 
     // Primer arranque: mostrar instrucciones una sola vez por navegador
@@ -640,13 +670,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     log('⏱ Dejás pasar el tiempo…');
     pasarTiempo();                       // aplica tick real
-    pulse(byId('mascotaImg'), 'animate-happy', 450); // feedback visual sutil
 
     const curr = snapStats();
     const d = diffStats(prev, curr);
     if (d) {
-      toast(`Tick aplicado · Dinero ${d.dMoney} · Salud ${d.dSalud} · Hambre ${d.dHambre} · Felicidad ${d.dFelicidad}`);
-      log(`Resultado del tick → Dinero ${d.dMoney} | Salud ${d.dSalud} | Hambre ${d.dHambre} | Felicidad ${d.dFelicidad}`);
+      toast(`Tick aplicado · Dinero ${d.dMoney} · Salud ${d.dSalud} · Alimentación ${d.dAlim} · Felicidad ${d.dFelicidad}`);
+      log(`Resultado del tick → Dinero ${d.dMoney} | Salud ${d.dSalud} | Alimentación ${d.dAlim} | Felicidad ${d.dFelicidad}`);
     }
 
     setTimeout(() => { btn.disabled = false; }, 350);

@@ -3,18 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#0b0f1a">
   <title>Feyoox - Tamagochi</title>
-
   <link rel="icon" type="image/png" href="./media/logo.png" />
   <link rel="stylesheet" href="./style/style.css" />
-
-  <!-- Toastify (toasts no intrusivos) -->
+  
+  <!-- Toastify -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/toastify-js" defer></script>
 
-  <!-- SweetAlert2 (modales de confirmación) -->
+  <!-- SweetAlert2 -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11" defer></script>
 </head>
 <body>
@@ -90,9 +87,10 @@
               <div class="label">Salud: <strong id="saludLabel">0</strong>/100</div>
               <div class="bar"><span id="saludBar"></span></div>
             </div>
+            <!-- ANTES: Hambre. AHORA: Alimentación (métrica positiva: más alto = mejor) -->
             <div class="stat">
-              <div class="label">Hambre: <strong id="hambreLabel">0</strong>/<span id="hambreMaxLabel">20</span></div>
-              <div class="bar"><span id="hambreBar"></span></div>
+              <div class="label">Alimentación: <strong id="alimentacionLabel">0</strong>/<span id="alimentacionMaxLabel">20</span></div>
+              <div class="bar"><span id="alimentacionBar"></span></div>
             </div>
             <div class="stat">
               <div class="label">Felicidad: <strong id="felicidadLabel">0</strong>/<span id="felicidadMaxLabel">20</span></div>
@@ -126,7 +124,6 @@
           <div class="row">
             <div class="col">
               <h2 class="subtitle">Tienda de Bayas</h2>
-              <!-- Texto simplificado: sin mencionar Firmness/Growth -->
               <p class="muted">Precios ajustados a su efectividad.</p>
               <div id="storeList" class="store-grid" aria-live="polite"></div>
             </div>
