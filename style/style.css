@@ -36,20 +36,6 @@
   --t-base: .25s ease;
 }
 
-/* Modo claro opcional si el SO lo prefiere */
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f5f7fb;
-    --bg-elev: #ffffff;
-    --bg-elev-2: #f2f6ff;
-    --border: #e5e7eb;
-    --border-2: #d8dee9;
-    --text: #0f172a;
-    --text-dim: #334155;
-    --text-muted: #475569;
-  }
-}
-
 /* Respeto a usuarios con reduce-motion */
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
