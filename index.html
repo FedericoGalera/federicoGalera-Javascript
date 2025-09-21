@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Feyoox - Tamagochi</title>
   <link rel="icon" type="image/png" href="./media/logo.png" />
   <link rel="stylesheet" href="./style/style.css" />
@@ -16,7 +16,7 @@
 </head>
 <body>
 
-  <!-- Navbar simple (estático) -->
+  <!-- Navbar -->
   <nav class="navbar" aria-label="Barra de navegación">
     <div class="container">
       <a href="#" class="logo" aria-label="Inicio">
@@ -32,11 +32,9 @@
 
   <main class="container">
     <h1>Bienvenidos</h1>
-    <p>
-      Simulador de mascota virtual con y <strong>Pokémon</strong> con sistema de <strong>economía</strong>:
-      tendrás <em>bayas limitadas</em> al inicio, ganarás <em>dinero</em> si cuidas bien a tu Pokémon,
-      y podrás comprar más desde la <strong>Tienda</strong> con <strong>carrito</strong>.
-    </p>
+<p class="intro">
+  Criá a tu Pokémon como una mascota virtual en tiempo real. Mantené su <strong>salud</strong>, <strong>alimentación</strong> y <strong>felicidad</strong>, comprá <strong>bayas</strong> en la tienda, gestioná tu <strong>dinero</strong> y desbloqueá la <strong>evolución</strong> manteniendo la salud al 100%. Incluye registro de eventos, pausa persistente y opción <strong>Shiny</strong>.
+</p>
 
     <section class="game card" aria-live="polite">
       <div class="row">
@@ -46,9 +44,14 @@
           <!-- Formulario de creación -->
           <div id="formCreacion" class="form-row">
             <div class="form-left">
-              <!-- Select poblado SOLO con especies de 1ra fase en orden de Pokédex -->
+              <!-- Select poblado SOLO con especies de 1ra fase (orden Pokédex) -->
               <select id="pokemonSelect" aria-label="Selecciona un Pokémon"></select>
               <img id="pokemonPreview" class="pokemon-img" src="" alt="Vista previa Pokémon" style="display:none;"/>
+              <!-- Opción Shiny -->
+              <label class="chk">
+                <input type="checkbox" id="chkShiny" />
+                Shiny
+              </label>
               <button id="btnNueva" class="btn">Nueva partida</button>
             </div>
             <button id="btnInstrucciones" class="btn warn">Instrucciones</button>
@@ -69,27 +72,25 @@
 
       <!-- Panel de juego -->
       <div id="game" class="game-panel" style="display:none;">
-        <div class="row">
-          <div class="col">
-            <!-- Cabecera de la mascota -->
+
+        <!-- Grilla -->
+        <div class="game-grid">
+
+          <!-- Pokémon + stats -->
+          <section class="col-main">
             <div class="header-line">
               <h2 id="tituloMascota" class="subtitle">Pokémon</h2>
-              <!-- Dinero visible en la cabecera del panel -->
               <div class="money" title="Dinero disponible">
                 <span>💰</span>
                 <strong id="moneyLabel">0</strong>
               </div>
             </div>
 
-            <!-- Sprite del Pokémon -->
-            <img id="mascotaImg" class="pokemon-img" alt="Pokémon de la mascota" style="display:none;" />
-
-            <!-- Stats -->
+            <!-- ESTADÍSTICAS -->
             <div class="stat">
               <div class="label">Salud: <strong id="saludLabel">0</strong>/100</div>
               <div class="bar"><span id="saludBar"></span></div>
             </div>
-            <!-- Alimentación (métrica positiva: más alto = mejor) -->
             <div class="stat">
               <div class="label">Alimentación: <strong id="alimentacionLabel">0</strong>/<span id="alimentacionMaxLabel">20</span></div>
               <div class="bar"><span id="alimentacionBar"></span></div>
@@ -98,57 +99,61 @@
               <div class="label">Felicidad: <strong id="felicidadLabel">0</strong>/<span id="felicidadMaxLabel">20</span></div>
               <div class="bar"><span id="felicidadBar"></span></div>
             </div>
+
             <div class="stat">Bienestar total: <strong id="scoreLabel">0</strong></div>
-
-            <!-- Chips (resumen rápido) -->
             <div class="chips" id="chips"></div>
-          </div>
 
-          <div class="col">
+            <div class="sprite-wrap">
+              <img id="mascotaImg" class="pokemon-img" alt="Pokémon de la mascota" style="display:none;" />
+            </div>
+          </section>
+
+          <!-- Acciones + alimentar/inventario -->
+          <section class="col-actions">
             <h2 class="subtitle">Acciones</h2>
             <div class="actions">
               <button class="btn" id="btnJugar">Jugar</button>
               <button class="btn" id="btnPasar">Pasar tiempo</button>
+              <button class="btn" id="btnTienda">Tienda</button>
             </div>
 
-            <!-- Inventario actual (consumido al alimentar) -->
+            <!-- Evolución -->
+            <div id="evoContainer">
+              <div class="actions" style="margin-top:8px;">
+                <button class="btn evo" id="btnEvolucionar" title="Mantén Salud = 100 para habilitar" disabled>Evolucionar ✨</button>
+              </div>
+              <div class="stat">
+                <div class="label">
+                  Progreso de evolución: 
+                  <strong id="evoTicksLabel">0</strong>/<span id="evoTicksMaxLabel">12</span>
+                  <span class="muted"> · Salud debe estar en 100</span>
+                </div>
+                <div class="bar progress"><span id="evoProgressBar"></span></div>
+              </div>
+            </div>
+
             <h3 class="subtitle small">Inventario de Bayas</h3>
             <div id="inventario" class="inventory-grid" aria-live="polite"></div>
 
-            <!-- Alimentar (desde inventario) -->
             <h3 class="subtitle small">Alimentar</h3>
             <div id="comidas" class="actions wrap" aria-live="polite"></div>
-          </div>
-        </div>
+          </section>
 
-        <!-- Tienda + Carrito -->
-        <div class="store card inner">
-          <div class="row">
-            <div class="col">
-              <h2 class="subtitle">Tienda de Bayas</h2>
-              <p class="muted">Precios ajustados a su efectividad.</p>
-              <div id="storeList" class="store-grid" aria-live="polite"></div>
+          <!-- Eventos -->
+          <aside class="col-events">
+            <div class="events card inner">
+              <h3 class="subtitle small">Eventos</h3>
+              <div class="log" id="log" aria-live="polite"></div>
             </div>
-            <div class="col">
-              <h2 class="subtitle">Carrito</h2>
-              <div id="cart" class="cart-box" aria-live="polite"></div>
-              <div class="cart-actions">
-                <button id="btnVaciarCarrito" class="btn warn">Vaciar</button>
-                <button id="btnComprar" class="btn">Comprar</button>
-              </div>
-              <p class="muted">Total: <strong id="cartTotal">$0</strong></p>
-            </div>
-          </div>
-        </div>
+          </aside>
 
-        <!-- Log de eventos -->
-        <h3 class="subtitle small">Eventos</h3>
-        <div class="log" id="log" aria-live="polite"></div>
+        </div>
       </div>
     </section>
   </main>
 
-  <!-- Footer -->
+          <!-- Footer -->
+
   <footer class="footer">
     <div class="container">
       <p>&copy; 2025 Feyoox. Todos los derechos reservados.</p>
@@ -160,7 +165,6 @@
     </div>
   </footer>
 
-  <!-- Lógica -->
   <script src="./main.js" defer></script>
 </body>
 </html>
