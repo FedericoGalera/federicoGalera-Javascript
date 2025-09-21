@@ -21,7 +21,7 @@ const CONFIG = {
   // Si Alimentación o Felicidad llegan a 0, la Salud pierde este valor.
   saludCastigo: 10,
   // Intervalo del tick automático (segundos)
-  tickSegundos: 10,
+  tickSegundos: 5,
 
   // Economía
   dineroInicial: 100,
