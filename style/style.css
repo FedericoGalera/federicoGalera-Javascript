@@ -346,3 +346,31 @@ select#pokemonSelect:focus {
   h1 { font-size: clamp(1.8rem, 5vw, 2.2rem); }
   .col { min-width: min(100%, 320px); }
 }
+
+/* ============================================================================
+   Fondo y popup más oscuros
+   ========================================================================== */
+.swal2-container.swal2-backdrop-show,
+.swal2-container.swal2-noanimation {
+  background: rgba(0,0,0,0.82) !important;
+}
+
+.swal2-popup {
+  background: #0b1222 !important;
+  border: 1px solid #263042 !important;
+  box-shadow: 0 18px 60px rgba(0,0,0,.65) !important;
+  border-radius: 14px !important;
+}
+
+.swal2-title,
+.swal2-html-container {
+  color: var(--text) !important;
+}
+
+.swal2-actions .swal2-confirm {
+  border-radius: 10px !important;
+}
+.swal2-actions .swal2-cancel {
+  border-radius: 10px !important;
+  filter: brightness(0.92);
+}

@@ -5,11 +5,7 @@
 // - Pop-up de instrucciones en primer arranque (al crear "Nueva partida")
 // - PokeAPI (Gen 1–3), economía, tienda+carrito, "Pasar tiempo" = tick real
 // - Animaciones: idle (flotar) y happy (wiggle) en sprite
-// =============================================================================
-// CAMBIO DE MODELO: 'Hambre' -> 'Alimentación'
-// - Antes: 'hambre' era una métrica NEGATIVA que aumentaba con el tiempo y castigaba.
-// - Ahora: 'alimentación' es una métrica POSITIVA que DISMINUYE con el tiempo y
-//   debe mantenerse alta alimentando a la mascota. Todo texto y lógica se adaptan.
+// - Métricas: Salud (0–100), Alimentación (0–20), Felicidad (0–20)
 // =============================================================================
 
 // ------------------------------ CONFIG --------------------------------------
@@ -17,11 +13,15 @@ const ALIMENTACION_MAX = 20;
 const FELICIDAD_MAX = 20;
 
 const CONFIG = {
-  alimentacionPorJugar: -3,    // jugar: felicidad ↑, alimentación ↓
-  alimentacionPorTick: -2,     // por tick: alimentación ↓
-  felicidadPorTick: -1,        // por tick: felicidad ↓
-  saludCastigo: 10,            // si alimentación vacía o felicidad vacía: salud ↓
-  tickSegundos: 5,            // intervalo del tick automático (s)
+  // Jugar aumenta Felicidad y consume algo de Alimentación.
+  alimentacionPorJugar: -3,
+  // Cada tick real reduce un poco Alimentación y Felicidad.
+  alimentacionPorTick: -2,
+  felicidadPorTick: -1,
+  // Si Alimentación o Felicidad llegan a 0, la Salud pierde este valor.
+  saludCastigo: 10,
+  // Intervalo del tick automático (segundos)
+  tickSegundos: 10,
 
   // Economía
   dineroInicial: 100,
@@ -40,6 +40,17 @@ const POKE_API = {
   pokemonByName: (name) => `https://pokeapi.co/api/v2/pokemon/${name}`
 };
 
+// ------------------------------ SWEETALERT PRESET ---------------------------
+// Preset oscuro consistente para todos los pop-ups
+const swalDark = Swal.mixin({
+  background: '#0b1222',
+  color: '#e5e7eb',
+  backdrop: 'rgba(0,0,0,0.82)',
+  confirmButtonColor: '#22c55e',
+  cancelButtonColor: '#ef4444',
+  buttonsStyling: true
+});
+
 // ------------------------------ HELPERS -------------------------------------
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const qs  = (s, p = document) => p.querySelector(s);
@@ -50,16 +61,16 @@ const toast = (text) => Toastify({ text, duration: 2500, gravity: 'top', positio
 const logBox = byId('log');
 const log = (msg) => { if (!logBox) return; logBox.innerHTML = `<div>• ${msg}</div>` + logBox.innerHTML; };
 
-// Dispara una clase temporal (para animaciones cortas)
+// Clase temporal para pequeñas animaciones
 function pulse(el, cls, ms = 600) {
   if (!el) return;
   el.classList.remove(cls);
-  void el.offsetWidth; // reflow
+  void el.offsetWidth;
   el.classList.add(cls);
   setTimeout(() => el.classList.remove(cls), ms);
 }
 
-// Snap/Diff de stats para toasts informativos al pasar tiempo
+// Snapshot/Diff de stats para feedback al pasar tiempo
 function snapStats() {
   if (!pet) return null;
   return { salud: pet.salud, alimentacion: pet.alimentacion, felicidad: pet.felicidad, money: pet.money };
@@ -82,6 +93,7 @@ class Mascota {
     this.sprite = sprite;
 
     this.salud = 100;
+    // Alimentación y Felicidad comienzan en la mitad de su rango.
     this.alimentacion = 10;
     this.felicidad = 10;
     this.viva = true;
@@ -92,14 +104,15 @@ class Mascota {
 }
 
 // ------------------------------ PERSISTENCIA --------------------------------
-const KEY_SAVE      = 'tamagochi_save_unico_v7'; // bump para aislar del v6
+// Claves de almacenamiento. v7 es el esquema actual.
+const KEY_SAVE      = 'tamagochi_save_unico_v7';
 const KEY_BERRIES   = 'berries_cache_v2';
 const KEY_POKELIST  = 'pokemon_list_cache_v2';
-const KEY_FIRST_RUN = 'tamagochi_first_run_shown_v1'; // para no repetir instrucciones
+const KEY_FIRST_RUN = 'tamagochi_first_run_shown_v1';
 
 function save(state) { localStorage.setItem(KEY_SAVE, JSON.stringify(state)); }
 function load() {
-  // Intento 1: nuevo esquema
+  // Intento 1: esquema actual
   const rawNew = localStorage.getItem(KEY_SAVE);
   if (rawNew) {
     try {
@@ -111,24 +124,22 @@ function load() {
       return p;
     } catch {}
   }
-  // Intento 2: migración desde esquema anterior (v6) con 'hambre'
+  // Intento 2: compatibilidad con un esquema anterior (si existiera)
   const rawOld = localStorage.getItem('tamagochi_save_unico_v6');
   if (!rawOld) return null;
   try {
     const data = JSON.parse(rawOld);
     const p = new Mascota(data.nombre, data.sprite);
-    // Migración: Alimentación := ALIMENTACION_MAX - hambre (inversión semántica)
-    const hambreOld = typeof data.hambre === 'number' ? clamp(data.hambre, 0, 20) : 10;
-    p.alimentacion = ALIMENTACION_MAX - hambreOld;
+    // Mapear valor legado a Alimentación actual (conservando el progreso del usuario)
+    const legacyInverse = typeof data.hambre === 'number' ? clamp(data.hambre, 0, 20) : 10;
+    p.alimentacion = ALIMENTACION_MAX - legacyInverse;
     p.felicidad = typeof data.felicidad === 'number' ? data.felicidad : 10;
     p.salud = typeof data.salud === 'number' ? data.salud : 100;
     p.viva = data.viva !== false;
     p.money = typeof data.money === 'number' ? data.money : CONFIG.dineroInicial;
     p.inventory = data.inventory || {};
-    // Guardamos en el nuevo esquema
+    // Guardar ya en el esquema actual
     save(p);
-    // Limpiamos el viejo para evitar confusiones (opcional)
-    // localStorage.removeItem('tamagochi_save_unico_v6');
     return p;
   } catch {
     return null;
@@ -153,7 +164,7 @@ async function fetchJson(url) {
 }
 
 // ------------------------------ BAYAS / CATÁLOGO ----------------------------
-// En el modelo nuevo, las comidas AUMENTAN 'alimentación' (antes reducían 'hambre').
+// Las comidas aumentan Alimentación y también aportan algo de Felicidad.
 const FIRMNESS_FACTORS = {
   'very-soft': 0.95, 'soft': 1.00, 'hard': 1.10, 'very-hard': 1.20, 'super-hard': 1.30
 };
@@ -163,7 +174,6 @@ function mapBerryToFood(berry, item) {
   const size = berry.size ?? 20;
   const totalFlavor = (berry.flavors || []).reduce((acc, f) => acc + (f.potency || 0), 0);
 
-  // Antes: dhambre negativo (reduce hambre). Ahora: dalimentacion positivo (aumenta alimentación).
   const dalimentacion = clamp(Math.round(size / 30) + 2, 2, 10);
   const dfelicidad   = clamp(Math.round(totalFlavor / 12) || 1, 1, 8);
 
@@ -326,33 +336,33 @@ function jugar() {
   save(pet);
 }
 
-// TICK real: Se ejecuta automático y también con el botón "Pasar tiempo"
+// Tick real: se ejecuta automático y también con el botón "Pasar tiempo"
 function pasarTiempo() {
   if (!pet || !pet.viva) return;
 
-  // Nuevo modelo: alimentación baja, felicidad baja
+  // Avance natural del tiempo
   pet.alimentacion += CONFIG.alimentacionPorTick; // negativo
   pet.felicidad    += CONFIG.felicidadPorTick;    // negativo
   normalizar();
 
-  // Si descuidado -> castigo en salud
+  // Descuido → penalización de salud
   if (pet.alimentacion <= 0 || pet.felicidad <= 0) {
     pet.salud -= CONFIG.saludCastigo;
     normalizar();
     log(`¡CUIDADO! La salud de ${pet.nombre} bajó por descuido.`);
   }
 
-  // Si está bien cuidado, recupera salud
+  // Buen estado → pequeña recuperación de salud
   if (pet.alimentacion >= 10 && pet.felicidad >= 10 && pet.salud < 100) {
     pet.salud += 5;
     if (pet.salud > 100) pet.salud = 100;
     log(`${pet.nombre} se siente bien cuidado y recupera salud.`);
   }
 
-  // Pago de recompensa si corresponde
+  // Recompensas periódicas si el cuidado es correcto
   pagarRecompensaSiCorresponde();
 
-  // Verificar muerte
+  // Fin de la partida si la salud cae a 0
   if (pet.salud <= 0) {
     pet.viva = false;
     log(`${pet.nombre} no ha podido sobrevivir. Fin del juego.`);
@@ -366,7 +376,7 @@ function pasarTiempo() {
 function scoreBienestar() {
   const partes = [
     pet.salud / 100,
-    pet.alimentacion / ALIMENTACION_MAX, // antes: 1 - (hambre/HAMBRE_MAX)
+    pet.alimentacion / ALIMENTACION_MAX,
     pet.felicidad / FELICIDAD_MAX
   ];
   return Math.round((partes.reduce((a,b)=>a+b,0) / partes.length) * 100);
@@ -512,7 +522,7 @@ async function comprarCarrito() {
   const total = entries.reduce((acc, [id, qty]) => acc + (precios[id] || 0) * qty, 0);
   if (pet.money < total) { toast('Dinero insuficiente.'); return; }
 
-  const res = await Swal.fire({
+  const res = await swalDark.fire({
     title: 'Confirmar compra',
     html: `Vas a gastar <strong>$${total}</strong> en bayas.`,
     icon: 'question',
@@ -536,9 +546,9 @@ async function comprarCarrito() {
 function vaciarCarrito() { carrito = {}; renderCatalogo(); renderCarrito(); }
 
 // ------------------------------ INSTRUCCIONES -------------------------------
-// Pop-up
+// Pop-up con guía rápida
 function mostrarInstrucciones() {
-  Swal.fire({
+  swalDark.fire({
     title: 'Cómo se juega',
     html: `
       <div style="text-align:left; line-height:1.5">
@@ -554,7 +564,7 @@ function mostrarInstrucciones() {
           <li>Invertí el dinero en la <strong>Tienda</strong> para comprar más bayas con el <strong>carrito</strong>.</li>
         </ul>
         <p class="muted" style="margin-top:.5rem">
-          <strong>Consejo: evitá que la alimentación llegue a cero o que la felicidad llegue a cero, o la salud se verá afectada.</strong>
+          Consejo: evitá que la alimentación llegue a cero o que la felicidad llegue a cero, o la salud se verá afectada.
         </p>
       </div>
     `,
@@ -602,7 +612,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     qs('#game').style.display = '';
     if (!pet.inventory) pet.inventory = {};
     if (typeof pet.money !== 'number') pet.money = CONFIG.dineroInicial;
-    // Si llega una partida antigua sin 'alimentacion', hacemos un fallback seguro
     if (typeof pet.alimentacion !== 'number') pet.alimentacion = 10;
     render();
     iniciarTiempo();
@@ -630,7 +639,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     log(`¡Ha nacido tu nueva mascota: ${pet.nombre}!`);
     mostrarSoloBorrarGuardado();
 
-    // Primer arranque: mostrar instrucciones una sola vez por navegador
+    // Mostrar instrucciones en el primer arranque del navegador
     const firstShown = localStorage.getItem(KEY_FIRST_RUN);
     if (!firstShown) {
       mostrarInstrucciones();
@@ -640,7 +649,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Borrar guardado
   byId('btnBorrar').addEventListener('click', async () => {
-    const res = await Swal.fire({
+    const res = await swalDark.fire({
       title: '¿Borrar guardado?',
       text: 'Perderás el progreso actual.',
       icon: 'warning',
@@ -670,6 +679,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     log('⏱ Dejás pasar el tiempo…');
     pasarTiempo();                       // aplica tick real
+    pulse(byId('mascotaImg'), 'animate-happy', 450); // feedback visual sutil
 
     const curr = snapStats();
     const d = diffStats(prev, curr);
