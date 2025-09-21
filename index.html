@@ -43,22 +43,23 @@
         <div class="col">
           <h2 class="subtitle">Crear / Continuar partida</h2>
 
-<!-- Formulario de creación -->
-<div id="formCreacion" class="form-row">
-  <div class="form-left">
-    <select id="pokemonSelect" aria-label="Selecciona un Pokémon"></select>
-    <img id="pokemonPreview" class="pokemon-img" src="" alt="Vista previa Pokémon" style="display:none;"/>
-    <button id="btnNueva" class="btn">Nueva partida</button>
-  </div>
-  <button id="btnInstrucciones" class="btn warn">Instrucciones</button>
-</div>
+          <!-- Formulario de creación -->
+          <div id="formCreacion" class="form-row">
+            <div class="form-left">
+              <!-- Select poblado SOLO con especies de 1ra fase en orden de Pokédex -->
+              <select id="pokemonSelect" aria-label="Selecciona un Pokémon"></select>
+              <img id="pokemonPreview" class="pokemon-img" src="" alt="Vista previa Pokémon" style="display:none;"/>
+              <button id="btnNueva" class="btn">Nueva partida</button>
+            </div>
+            <button id="btnInstrucciones" class="btn warn">Instrucciones</button>
+          </div>
 
-<!-- Solo borrar guardado (se muestra si hay partida) -->
-<div id="formBorrar" class="form-row" style="display:none;">
-  <button id="btnBorrar" class="btn danger">Borrar guardado</button>
-  <button id="btnPausa" class="btn">Pausa</button>
-  <button id="btnInstruccionesBorrar" class="btn warn">Instrucciones</button>
-</div>
+          <!-- Solo borrar guardado (se muestra si hay partida) -->
+          <div id="formBorrar" class="form-row" style="display:none;">
+            <button id="btnBorrar" class="btn danger">Borrar guardado</button>
+            <button id="btnPausa" class="btn">Pausa</button>
+            <button id="btnInstruccionesBorrar" class="btn warn">Instrucciones</button>
+          </div>
 
           <p class="muted" style="margin-top:8px;">
             Una partida a la vez. Si existe guardado, se carga automáticamente.
@@ -88,7 +89,7 @@
               <div class="label">Salud: <strong id="saludLabel">0</strong>/100</div>
               <div class="bar"><span id="saludBar"></span></div>
             </div>
-            <!-- ANTES: Hambre. AHORA: Alimentación (métrica positiva: más alto = mejor) -->
+            <!-- Alimentación (métrica positiva: más alto = mejor) -->
             <div class="stat">
               <div class="label">Alimentación: <strong id="alimentacionLabel">0</strong>/<span id="alimentacionMaxLabel">20</span></div>
               <div class="bar"><span id="alimentacionBar"></span></div>

@@ -5,7 +5,9 @@
 // - Pop-up de instrucciones en primer arranque (al crear "Nueva partida")
 // - PokeAPI (Gen 1–3), economía, tienda+carrito, "Pasar tiempo" = tick real
 // - Animaciones: idle (flotar) y happy (wiggle) en sprite
-// - Métricas: Salud (0–100), Alimentación (0–20), Felicidad (0–20)
+// - Métricas: Salud (1–100), Alimentación (0–20), Felicidad (0–20)
+// - Evolución: mantener Salud = 100 por N ticks → evoluciona (no evoluciona con salud baja)
+// - Selector: SOLO especies en 1ra fase (sin preevolución) en ORDEN DE POKÉDEX
 // =============================================================================
 
 // ------------------------------ CONFIG --------------------------------------
@@ -18,7 +20,7 @@ const CONFIG = {
   // Cada tick real reduce un poco Alimentación y Felicidad.
   alimentacionPorTick: -2,
   felicidadPorTick: -1,
-  // Si Alimentación o Felicidad llegan a 0, la Salud pierde este valor.
+  // Penalización si Alimentación o Felicidad llegan a 0.
   saludCastigo: 10,
   // Intervalo del tick automático (segundos)
   tickSegundos: 5,
@@ -29,19 +31,29 @@ const CONFIG = {
   umbralAlimentacionMin: 10,
   umbralFelicidadMin: 10,
   recompensaBase: 30,
-  recompensaBonusScore: 25
+  recompensaBonusScore: 25,
+
+  // Evolución: cantidad de ticks consecutivos con Salud = 100
+  // Con tickSegundos=5, 12 ticks ≈ 1 min.
+  evoTicksRequeridos: 12,
 };
 
 // ------------------------------ POKEAPI -------------------------------------
 const POKE_API = {
+  // Especies (filtrado 1ra fase + orden Pokédex por id)
+  pokemonSpeciesList: 'https://pokeapi.co/api/v2/pokemon-species?limit=386',
+  speciesByName: (name) => `https://pokeapi.co/api/v2/pokemon-species/${name}`,
+  evolutionChainByUrl: (url) => url,
+
+  // Pokémon (sprites)
+  pokemonByName: (name) => `https://pokeapi.co/api/v2/pokemon/${name}`,
+
+  // Bayas
   berriesList: 'https://pokeapi.co/api/v2/berry?limit=64',
-  // Gen 1–3 (Pokédex hasta #386)
-  pokemonList: 'https://pokeapi.co/api/v2/pokemon?limit=386',
-  pokemonByName: (name) => `https://pokeapi.co/api/v2/pokemon/${name}`
 };
 
 // ------------------------------ SWEETALERT PRESET ---------------------------
-// Preset oscuro consistente para todos los pop-ups
+// Pop-ups oscuros consistentes
 const swalDark = Swal.mixin({
   background: '#0b1222',
   color: '#e5e7eb',
@@ -61,7 +73,6 @@ const toast = (text) => Toastify({ text, duration: 2500, gravity: 'top', positio
 const logBox = byId('log');
 const log = (msg) => { if (!logBox) return; logBox.innerHTML = `<div>• ${msg}</div>` + logBox.innerHTML; };
 
-// Clase temporal para pequeñas animaciones
 function pulse(el, cls, ms = 600) {
   if (!el) return;
   el.classList.remove(cls);
@@ -70,7 +81,7 @@ function pulse(el, cls, ms = 600) {
   setTimeout(() => el.classList.remove(cls), ms);
 }
 
-// Snapshot/Diff de stats para feedback al pasar tiempo
+// Snapshot/Diff de stats
 function snapStats() {
   if (!pet) return null;
   return { salud: pet.salud, alimentacion: pet.alimentacion, felicidad: pet.felicidad, money: pet.money };
@@ -92,27 +103,31 @@ class Mascota {
     this.nombre = nombre;
     this.sprite = sprite;
 
-    this.salud = 100;
-    // Alimentación y Felicidad comienzan en la mitad de su rango.
+    this.salud = 100;          // Ahora nunca baja de 1 (ver normalizar)
     this.alimentacion = 10;
     this.felicidad = 10;
-    this.viva = true;
 
     this.money = CONFIG.dineroInicial;
     this.inventory = {}; // { idDeBaya: cantidad }
+
+    // Evolución
+    this.species = '';         // nombre de species
+    this.evoChainUrl = '';     // URL cadena evolución
+    this.evoStage = 0;         // 0 = 1ra fase, etc.
+    this.ticksSaludMax = 0;    // ticks consecutivos con Salud=100
+    this.evoFinal = false;     // true si no hay siguiente evolución
   }
 }
 
 // ------------------------------ PERSISTENCIA --------------------------------
-// Claves de almacenamiento. v7 es el esquema actual.
 const KEY_SAVE      = 'tamagochi_save_unico_v7';
 const KEY_BERRIES   = 'berries_cache_v2';
 const KEY_POKELIST  = 'pokemon_list_cache_v2';
 const KEY_FIRST_RUN = 'tamagochi_first_run_shown_v1';
+const KEY_FIRST_STAGE_CACHE = 'first_stage_species_cache_v2'; // bump cache key porque cambia la estructura (incluye id)
 
 function save(state) { localStorage.setItem(KEY_SAVE, JSON.stringify(state)); }
 function load() {
-  // Intento 1: esquema actual
   const rawNew = localStorage.getItem(KEY_SAVE);
   if (rawNew) {
     try {
@@ -121,24 +136,31 @@ function load() {
       Object.assign(p, data);
       if (typeof p.money !== 'number') p.money = CONFIG.dineroInicial;
       if (!p.inventory) p.inventory = {};
+      p.species       = p.species || '';
+      p.evoChainUrl   = p.evoChainUrl || '';
+      p.evoStage      = typeof p.evoStage === 'number' ? p.evoStage : 0;
+      p.ticksSaludMax = typeof p.ticksSaludMax === 'number' ? p.ticksSaludMax : 0;
+      p.evoFinal      = !!p.evoFinal;
       return p;
     } catch {}
   }
-  // Intento 2: compatibilidad con un esquema anterior (si existiera)
+  // Compat v6 (mapea "hambre" legado a Alimentación actual)
   const rawOld = localStorage.getItem('tamagochi_save_unico_v6');
   if (!rawOld) return null;
   try {
     const data = JSON.parse(rawOld);
     const p = new Mascota(data.nombre, data.sprite);
-    // Mapear valor legado a Alimentación actual (conservando progreso del usuario)
     const legacyInverse = typeof data.hambre === 'number' ? clamp(data.hambre, 0, 20) : 10;
     p.alimentacion = ALIMENTACION_MAX - legacyInverse;
     p.felicidad = typeof data.felicidad === 'number' ? data.felicidad : 10;
     p.salud = typeof data.salud === 'number' ? data.salud : 100;
-    p.viva = data.viva !== false;
     p.money = typeof data.money === 'number' ? data.money : CONFIG.dineroInicial;
     p.inventory = data.inventory || {};
-    // Guardar ya en el esquema actual
+    p.species = '';
+    p.evoChainUrl = '';
+    p.evoStage = 0;
+    p.ticksSaludMax = 0;
+    p.evoFinal = false;
     save(p);
     return p;
   } catch {
@@ -150,13 +172,10 @@ function clearSave() { localStorage.removeItem(KEY_SAVE); }
 // ------------------------------ ESTADO --------------------------------------
 let pet = null;
 let timer = null;
-let pokemonMap = new Map();
-
 let comidas = [];
 let precios = {};
 let carrito = {};
-
-let paused = false; // indica si el juego está pausado
+let paused = false;
 
 // ------------------------------ FETCH UTILS ---------------------------------
 async function fetchJson(url) {
@@ -165,24 +184,79 @@ async function fetchJson(url) {
   return r.json();
 }
 
+// ------------------------------ EVOLUCIÓN -----------------------------------
+async function fetchSpecies(nameOrSpecies) {
+  return fetchJson(POKE_API.speciesByName(nameOrSpecies));
+}
+function getDefaultVarietyPokemonName(speciesObj) {
+  const def = (speciesObj.varieties || []).find(v => v.is_default);
+  return def?.pokemon?.name || speciesObj.name;
+}
+function findNextEvolutionSpeciesName(chainNode, currentSpecies) {
+  if (!chainNode) return null;
+  if (chainNode.species?.name === currentSpecies) {
+    return chainNode.evolves_to?.[0]?.species?.name || null;
+  }
+  for (const nxt of (chainNode.evolves_to || [])) {
+    const r = findNextEvolutionSpeciesName(nxt, currentSpecies);
+    if (r) return r;
+  }
+  return null;
+}
+async function evolucionarSiCorresponde() {
+  if (!pet || pet.evoFinal) return;
+  // Bloqueo adicional: NO evolucionar si la salud no está al máximo
+  if (pet.salud < 100) return;
+  if (pet.ticksSaludMax < CONFIG.evoTicksRequeridos) return;
+
+  try {
+    let speciesObj = null;
+    if (!pet.species) {
+      speciesObj = await fetchSpecies(pet.nombre.toLowerCase());
+      pet.species = speciesObj.name;
+      pet.evoChainUrl = speciesObj.evolution_chain?.url || '';
+    }
+
+    const species = speciesObj || await fetchSpecies(pet.species);
+    const chainUrl = species.evolution_chain?.url;
+    if (!chainUrl) { pet.evoFinal = true; save(pet); return; }
+
+    const chain = await fetchJson(chainUrl);
+    const nextSpeciesName = findNextEvolutionSpeciesName(chain.chain, species.name);
+    if (!nextSpeciesName) { pet.evoFinal = true; save(pet); return; }
+
+    const nextSpecies = await fetchSpecies(nextSpeciesName);
+    const nextPokemonName = getDefaultVarietyPokemonName(nextSpecies);
+    const nextSprite = await obtenerSprite(nextPokemonName);
+
+    pet.species = nextSpecies.name;
+    pet.nombre  = nextSpecies.name.replace(/\b\w/g, m => m.toUpperCase());
+    pet.evoStage = (pet.evoStage || 0) + 1;
+    pet.ticksSaludMax = 0;
+    if (nextSprite) pet.sprite = nextSprite;
+
+    save(pet);
+    render();
+    toast(`✨ ${pet.nombre} ha evolucionado`);
+    log(`✨ Evolución completada: ahora es ${pet.nombre}`);
+  } catch {
+    /* silencioso */
+  }
+}
+
 // ------------------------------ BAYAS / CATÁLOGO ----------------------------
-// Las comidas aumentan Alimentación y también aportan algo de Felicidad.
 const FIRMNESS_FACTORS = {
   'very-soft': 0.95, 'soft': 1.00, 'hard': 1.10, 'very-hard': 1.20, 'super-hard': 1.30
 };
 function growthFactor(t) { return clamp(1 + (t / 50), 1, 1.5); }
-
 function mapBerryToFood(berry, item) {
   const size = berry.size ?? 20;
   const totalFlavor = (berry.flavors || []).reduce((acc, f) => acc + (f.potency || 0), 0);
-
   const dalimentacion = clamp(Math.round(size / 30) + 2, 2, 10);
   const dfelicidad   = clamp(Math.round(totalFlavor / 12) || 1, 1, 8);
-
   const firmnessName = berry.firmness?.name ?? 'soft';
   const priceBase = 5 + (dalimentacion * 2 + dfelicidad * 3);
   const price = Math.max(5, Math.round(priceBase * (FIRMNESS_FACTORS[firmnessName] ?? 1) * growthFactor(berry.growth_time)));
-
   return {
     id: berry.name,
     label: berry.name.replace(/\b\w/g, m => m.toUpperCase()),
@@ -192,15 +266,12 @@ function mapBerryToFood(berry, item) {
     price
   };
 }
-
 const COMIDAS_FALLBACK = [
   { id:'baya',     label:'Baya',     dalimentacion:+8, dfelicidad:+2, msg:'¡Baya saludable!',    sprite:'', price: 27 },
   { id:'manzana',  label:'Manzana',  dalimentacion:+8, dfelicidad:+2, msg:'¡Manzana saludable!', sprite:'', price: 27 },
   { id:'caramelo', label:'Caramelo', dalimentacion:+3, dfelicidad:+6, msg:'¡Caramelo delicioso!',sprite:'', price: 29 },
 ];
-
 async function cargarComidasDesdePokeAPI() {
-  // Cache 24h
   const cached = localStorage.getItem(KEY_BERRIES);
   if (cached) {
     try {
@@ -211,9 +282,8 @@ async function cargarComidasDesdePokeAPI() {
         renderCatalogo();
         return;
       }
-    } catch { /* ignore */ }
+    } catch {}
   }
-
   try {
     const list = await fetchJson(POKE_API.berriesList);
     const picks = [...list.results].sort(() => Math.random() - 0.5).slice(0, 6);
@@ -231,45 +301,72 @@ async function cargarComidasDesdePokeAPI() {
   }
 }
 
-// ------------------------------ SELECTOR POKÉMON ----------------------------
-async function cargarListaPokemon() {
+// ------------------------------ SELECTOR: ------------------------------
+/**
+ * Poblamos el <select> ÚNICAMENTE con especies de 1ra fase, y en orden de Pokédex.
+ * Para mantener el orden oficial usamos el `id` de la species (National Dex).
+ * Cache 24h para evitar exceso de requests.
+ */
+async function cargarListaPokemonSoloPrimerasFases() {
   const sel = byId('pokemonSelect');
   if (!sel) return;
   sel.innerHTML = `<option value="" disabled selected>Elige tu Pokémon.</option>`;
 
-  let results;
-  const cached = localStorage.getItem(KEY_POKELIST);
-  if (cached) {
+  // Intento de cache
+  const cacheRaw = localStorage.getItem(KEY_FIRST_STAGE_CACHE);
+  if (cacheRaw) {
     try {
-      const { ts, list } = JSON.parse(cached);
-      if (Date.now() - ts < 7 * 24 * 60 * 60 * 1000 && list?.length) results = list;
-    } catch { /* ignore */ }
+      const { ts, species } = JSON.parse(cacheRaw);
+      if (Date.now() - ts < 24 * 60 * 60 * 1000 && Array.isArray(species) && species.length) {
+        // Nombre capitalizado
+        species.forEach(({ id, name, display }) => {
+          sel.insertAdjacentHTML('beforeend', `<option value="${name}">${display}</option>`);
+        });
+        sel.addEventListener('change', (e) => actualizarPreviewPorSpecies(e.target.value));
+        return;
+      }
+    } catch {}
   }
 
-  if (!results) {
-    const data = await fetchJson(POKE_API.pokemonList);
-    results = data.results;
-    localStorage.setItem(KEY_POKELIST, JSON.stringify({ ts: Date.now(), list: results }));
-  }
+  // Lista base (Gen 1–3)
+  const list = await fetchJson(POKE_API.pokemonSpeciesList);
 
-  results.forEach(({ name }) => {
-    const label = name.replace(/\b\w/g, m => m.toUpperCase());
-    sel.insertAdjacentHTML('beforeend', `<option value="${name}">${label}</option>`);
+  // Detalles para conocer `id` y `evolves_from_species`
+  let details = [];
+  try {
+    details = await Promise.all(list.results.map(s => fetchJson(s.url)));
+  } catch { /* seguimos con lo que haya */ }
+
+  // Filtrar 1ra fase y ORDENAR por id asc (Pokédex)
+  const firstStages = details
+    .filter(sp => !sp.evolves_from_species)
+    .map(sp => ({ id: sp.id, name: sp.name, display: sp.name.replace(/\b\w/g, m => m.toUpperCase()) }))
+    .sort((a, b) => a.id - b.id);
+
+  // Nombre
+  firstStages.forEach(({ id, name, display }) => {
+    sel.insertAdjacentHTML('beforeend', `<option value="${name}">${display}</option>`);
   });
 
-  sel.addEventListener('change', (e) => actualizarPreviewPokemon(e.target.value));
+  // Cache 24h
+  localStorage.setItem(KEY_FIRST_STAGE_CACHE, JSON.stringify({ ts: Date.now(), species: firstStages }));
+
+  // Preview al cambiar
+  sel.addEventListener('change', (e) => actualizarPreviewPorSpecies(e.target.value));
 }
 
-async function actualizarPreviewPokemon(name) {
+async function actualizarPreviewPorSpecies(speciesName) {
   const imgPrev = byId('pokemonPreview');
   if (!imgPrev) return;
-  if (!name) { imgPrev.removeAttribute('src'); imgPrev.style.display = 'none'; imgPrev.classList.remove('animate-idle'); return; }
+  if (!speciesName) { imgPrev.removeAttribute('src'); imgPrev.style.display = 'none'; imgPrev.classList.remove('animate-idle'); return; }
   try {
-    const detail = await fetchJson(POKE_API.pokemonByName(name));
+    const species = await fetchSpecies(speciesName);
+    const pokeName = getDefaultVarietyPokemonName(species);
+    const detail = await fetchJson(POKE_API.pokemonByName(pokeName));
     const src = detail.sprites?.front_default || '';
     if (src) {
-      imgPrev.src = src; imgPrev.alt = name; imgPrev.style.display = 'inline-block';
-      imgPrev.classList.add('animate-idle'); // flotando en el preview
+      imgPrev.src = src; imgPrev.alt = pokeName; imgPrev.style.display = 'inline-block';
+      imgPrev.classList.add('animate-idle');
     } else {
       imgPrev.removeAttribute('src'); imgPrev.style.display = 'none'; imgPrev.classList.remove('animate-idle');
     }
@@ -287,12 +384,10 @@ function inicializarInventario() {
   pet.inventory = pet.inventory || {};
   comidas.forEach(c => { if (pet.inventory[c.id] == null) pet.inventory[c.id] = 1; });
 }
-
 function pagarRecompensaSiCorresponde() {
   const okSalud        = pet.salud >= CONFIG.umbralSalud;
   const okAlimentacion = pet.alimentacion >= CONFIG.umbralAlimentacionMin;
   const okFelicidad    = pet.felicidad >= CONFIG.umbralFelicidadMin;
-
   if (okSalud && okAlimentacion && okFelicidad) {
     let ganancia = CONFIG.recompensaBase;
     if (scoreBienestar() > 65) ganancia += CONFIG.recompensaBonusScore;
@@ -305,10 +400,11 @@ function pagarRecompensaSiCorresponde() {
 function normalizar() {
   pet.alimentacion = clamp(pet.alimentacion, 0, ALIMENTACION_MAX);
   pet.felicidad    = clamp(pet.felicidad, 0, FELICIDAD_MAX);
-  pet.salud        = clamp(pet.salud, 0, 100);
+  // Salud NUNCA baja de 1 → se elimina la muerte
+  pet.salud        = clamp(pet.salud, 1, 100);
 }
-
 function alimentar(idComida) {
+  if (!pet || paused) return;
   if (!pet.inventory[idComida] || pet.inventory[idComida] <= 0) {
     toast('No tienes esa baya en tu inventario.');
     return;
@@ -326,8 +422,8 @@ function alimentar(idComida) {
   render();
   save(pet);
 }
-
 function jugar() {
+  if (!pet || paused) return;
   pet.felicidad    += 5;
   pet.alimentacion += CONFIG.alimentacionPorJugar; // negativo
   normalizar();
@@ -340,11 +436,11 @@ function jugar() {
 
 // Tick real: se ejecuta automático y también con el botón "Pasar tiempo"
 function pasarTiempo() {
-  if (!pet || !pet.viva) return;
+  if (!pet) return;
 
   // Avance natural del tiempo
-  pet.alimentacion += CONFIG.alimentacionPorTick; // negativo
-  pet.felicidad    += CONFIG.felicidadPorTick;    // negativo
+  pet.alimentacion += CONFIG.alimentacionPorTick;
+  pet.felicidad    += CONFIG.felicidadPorTick;
   normalizar();
 
   // Descuido → penalización de salud
@@ -361,20 +457,24 @@ function pasarTiempo() {
     log(`${pet.nombre} se siente bien cuidado y recupera salud.`);
   }
 
-  // Recompensas periódicas si el cuidado es correcto
+  // Contador de “buen cuidado” (Salud en 100)
+  if (pet.salud === 100) {
+    pet.ticksSaludMax = (pet.ticksSaludMax || 0) + 1;
+  } else {
+    pet.ticksSaludMax = 0;
+  }
+
+  // Recompensas
   pagarRecompensaSiCorresponde();
 
-  // Fin de la partida si la salud cae a 0
-  if (pet.salud <= 0) {
-    pet.viva = false;
-    log(`${pet.nombre} no ha podido sobrevivir. Fin del juego.`);
-    detenerTiempo();
-  }
+  // Intentar evolucionar (solo si Salud = 100; chequeado también dentro)
+  evolucionarSiCorresponde();
+
+  // >>> Se eliminó por completo la lógica de muerte. Salud no baja de 1. <<<
 
   save(pet);
   render();
 }
-
 function scoreBienestar() {
   const partes = [
     pet.salud / 100,
@@ -388,13 +488,14 @@ function scoreBienestar() {
 function render() {
   if (!pet) return;
 
-  qs('#tituloMascota').innerText = `${pet.nombre} ${pet.viva ? '' : '(✖)'}`;
+  // Título simple (ya no existe “estado de muerto”)
+  qs('#tituloMascota').innerText = `${pet.nombre}`;
 
   const img = byId('mascotaImg');
   if (img) {
     if (pet.sprite) {
       img.src = pet.sprite; img.alt = pet.nombre; img.style.display = 'block';
-      img.classList.add('animate-idle'); // flotando por defecto
+      img.classList.add('animate-idle');
     } else {
       img.removeAttribute('src'); img.style.display = 'none'; img.classList.remove('animate-idle');
     }
@@ -430,7 +531,7 @@ function render() {
         </button>
       `).join('')
     : `<span class="muted">No tienes bayas en inventario. Compra en la Tienda.</span>`;
-  qsa('[data-food]').forEach(btn => { btn.onclick = () => pet.viva && !paused && alimentar(btn.dataset.food); });
+  qsa('[data-food]').forEach(btn => { btn.onclick = () => !paused && alimentar(btn.dataset.food); });
 
   const inv = byId('inventario');
   inv.innerHTML = comidas.map(c => {
@@ -446,7 +547,6 @@ function render() {
   renderCatalogo();
   renderCarrito();
 }
-
 function renderCatalogo() {
   const store = byId('storeList');
   if (!store) return;
@@ -465,11 +565,9 @@ function renderCatalogo() {
       </div>
     </div>
   `).join('');
-
   qsa('[data-add]').forEach(b => b.onclick = () => { addToCart(b.dataset.add); });
   qsa('[data-sub]').forEach(b => b.onclick = () => { subFromCart(b.dataset.sub); });
 }
-
 function renderCarrito() {
   const cartBox = byId('cart');
   const totalEl = byId('cartTotal');
@@ -506,7 +604,6 @@ function renderCarrito() {
   qsa('#cart [data-add]').forEach(b => b.onclick = () => { addToCart(b.dataset.add); });
   qsa('#cart [data-sub]').forEach(b => b.onclick = () => { subFromCart(b.dataset.sub); });
 }
-
 function addToCart(id) {
   carrito[id] = (carrito[id] || 0) + 1;
   renderCatalogo(); renderCarrito();
@@ -516,11 +613,9 @@ function subFromCart(id) {
   carrito[id] = Math.max(0, carrito[id] - 1);
   renderCatalogo(); renderCarrito();
 }
-
 async function comprarCarrito() {
   const entries = Object.entries(carrito).filter(([, q]) => q > 0);
   if (!entries.length) { toast('El carrito está vacío.'); return; }
-
   const total = entries.reduce((acc, [id, qty]) => acc + (precios[id] || 0) * qty, 0);
   if (pet.money < total) { toast('Dinero insuficiente.'); return; }
 
@@ -539,16 +634,13 @@ async function comprarCarrito() {
     pet.inventory[id] = (pet.inventory[id] || 0) + qty;
   });
   carrito = {};
-
   toast('¡Compra realizada!');
   save(pet);
   render();
 }
-
 function vaciarCarrito() { carrito = {}; renderCatalogo(); renderCarrito(); }
 
 // ------------------------------ INSTRUCCIONES -------------------------------
-// Pop-up con guía rápida
 function mostrarInstrucciones() {
   swalDark.fire({
     title: 'Cómo se juega',
@@ -556,18 +648,15 @@ function mostrarInstrucciones() {
       <div style="text-align:left; line-height:1.5">
         <p>
           Elegí tu <strong>Pokémon</strong> y cuidalo como una mascota virtual.
-          Con el paso del tiempo, la <strong>alimentación disminuye</strong> y la <strong>felicidad disminuye</strong> un poco.
+          Con el paso del tiempo, la <strong>alimentación</strong> y la <strong>felicidad</strong> bajan un poco.
         </p>
         <ul style="margin-left:1.1rem">
           <li>Alimentá con <strong>bayas</strong> para <strong>subir la alimentación</strong> y mejorar el ánimo.</li>
-          <li>Usá <strong>Jugar</strong> para subir la felicidad (consume algo de alimentación).</li>
-          <li>El tiempo avanza automáticamente por <em>ticks</em> y también con <strong>Pasar tiempo</strong>.</li>
-          <li>Si el cuidado es bueno, <strong>ganás dinero</strong> periódicamente.</li>
-          <li>Invertí el dinero en la <strong>Tienda</strong> para comprar más bayas con el <strong>carrito</strong>.</li>
+          <li><strong>Jugar</strong> sube felicidad (consume algo de alimentación).</li>
+          <li>El tiempo avanza por <em>ticks</em> automáticos y con <strong>Pasar tiempo</strong>.</li>
+          <li>Si cuidás bien, <strong>ganás dinero</strong> periódico para la <strong>Tienda</strong>.</li>
+          <li>Para que tu Pokémon <strong>evolucione</strong>, mantené <strong>Salud al 100</strong> durante un tiempo; con salud baja NO evoluciona.</li>
         </ul>
-        <p class="muted" style="margin-top:.5rem">
-          Consejo: evitá que la alimentación llegue a cero o que la felicidad llegue a cero, o la salud se verá afectada.
-        </p>
       </div>
     `,
     icon: 'info',
@@ -582,15 +671,12 @@ function setPausedUI() {
   const btnPausa = byId('btnPausa');
   const btnJugar = byId('btnJugar');
   const btnPasar = byId('btnPasar');
-
   if (btnPausa) btnPausa.textContent = paused ? 'Reanudar' : 'Pausa';
   if (btnJugar) btnJugar.disabled = paused;
   if (btnPasar) btnPasar.disabled = paused;
 }
-
 function togglePausa() {
-  if (!pet || !pet.viva) return;
-
+  if (!pet) return;
   if (!paused) {
     detenerTiempo();
     paused = true;
@@ -608,7 +694,7 @@ function togglePausa() {
 // ------------------------------ TIEMPO --------------------------------------
 function iniciarTiempo() {
   if (timer) clearInterval(timer);
-  if (paused) return; // no iniciar si está pausado
+  if (paused) return;
   timer = setInterval(pasarTiempo, CONFIG.tickSegundos * 1000);
 }
 function detenerTiempo() {
@@ -630,7 +716,7 @@ function mostrarCreacion() {
 
 // ------------------------------ INICIO --------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
-  await cargarListaPokemon();
+  await cargarListaPokemonSoloPrimerasFases();
   await cargarComidasDesdePokeAPI();
 
   const saved = load();
@@ -649,16 +735,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     mostrarCreacion();
   }
 
-  // Nueva partida
+  // Nueva partida (validamos que sea 1ra fase aunque ya está filtrado)
   byId('btnNueva').addEventListener('click', async () => {
     if (load()) { toast('Ya existe una partida. Borra el guardado para crear otra.'); return; }
-    const name = byId('pokemonSelect').value;
-    if (!name) { toast('Elegí un Pokémon para empezar.'); return; }
+    const speciesName = byId('pokemonSelect').value;
+    if (!speciesName) { toast('Elegí un Pokémon para empezar.'); return; }
 
-    const sprite = await obtenerSprite(name);
-    const pretty = name.replace(/\b\w/g, m => m.toUpperCase());
+    const species = await fetchSpecies(speciesName);
+    if (species.evolves_from_species) {
+      toast('Solo puedes iniciar con Pokémon de 1ra fase.');
+      return;
+    }
+
+    const pokeName = getDefaultVarietyPokemonName(species);
+    const sprite = await obtenerSprite(pokeName);
+    const pretty = species.name.replace(/\b\w/g, m => m.toUpperCase());
 
     pet = new Mascota(pretty, sprite);
+    pet.species = species.name;
+    pet.evoChainUrl = species.evolution_chain?.url || '';
+    pet.evoStage = 0;
+    pet.ticksSaludMax = 0;
+    pet.evoFinal = false;
+
     inicializarInventario();
 
     paused = false;
@@ -670,7 +769,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     mostrarSoloBorrarGuardado();
     setPausedUI();
 
-    // Mostrar instrucciones en el primer arranque del navegador
     const firstShown = localStorage.getItem(KEY_FIRST_RUN);
     if (!firstShown) {
       mostrarInstrucciones();
@@ -699,36 +797,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     setPausedUI();
   });
 
-  // Jugar
-  byId('btnJugar').addEventListener('click', () => pet && pet.viva && !paused && jugar());
-
-  // Pasar tiempo = tick real + resumen + anti-spam
+  // Acciones principales
+  byId('btnJugar').addEventListener('click', () => !paused && pet && jugar());
   byId('btnPasar').addEventListener('click', (e) => {
-    if (!pet || !pet.viva || paused) return;
+    if (!pet || paused) return;
     const btn = e.currentTarget;
-
     btn.disabled = true;                 // anti-spam
     const prev = snapStats();            // snapshot
-
     log('⏱ Dejás pasar el tiempo…');
     pasarTiempo();                       // aplica tick real
-    pulse(byId('mascotaImg'), 'animate-happy', 450); // feedback visual sutil
-
+    pulse(byId('mascotaImg'), 'animate-happy', 450);
     const curr = snapStats();
     const d = diffStats(prev, curr);
     if (d) {
       toast(`Tick aplicado · Dinero ${d.dMoney} · Salud ${d.dSalud} · Alimentación ${d.dAlim} · Felicidad ${d.dFelicidad}`);
       log(`Resultado del tick → Dinero ${d.dMoney} | Salud ${d.dSalud} | Alimentación ${d.dAlim} | Felicidad ${d.dFelicidad}`);
     }
-
     setTimeout(() => { btn.disabled = false; }, 350);
   });
 
-  // Carrito
+  // Tienda
   byId('btnVaciarCarrito').addEventListener('click', () => { carrito = {}; renderCatalogo(); renderCarrito(); });
   byId('btnComprar').addEventListener('click', comprarCarrito);
 
   // Pausa/Reanudar
   const btnPausa = byId('btnPausa');
   if (btnPausa) btnPausa.addEventListener('click', togglePausa);
+
+  // Instrucciones (ambos botones)
+  byId('btnInstrucciones')?.addEventListener('click', mostrarInstrucciones);
+  byId('btnInstruccionesBorrar')?.addEventListener('click', mostrarInstrucciones);
 });
