@@ -130,7 +130,7 @@ function load() {
   try {
     const data = JSON.parse(rawOld);
     const p = new Mascota(data.nombre, data.sprite);
-    // Mapear valor legado a Alimentación actual (conservando el progreso del usuario)
+    // Mapear valor legado a Alimentación actual (conservando progreso del usuario)
     const legacyInverse = typeof data.hambre === 'number' ? clamp(data.hambre, 0, 20) : 10;
     p.alimentacion = ALIMENTACION_MAX - legacyInverse;
     p.felicidad = typeof data.felicidad === 'number' ? data.felicidad : 10;
@@ -155,6 +155,8 @@ let pokemonMap = new Map();
 let comidas = [];
 let precios = {};
 let carrito = {};
+
+let paused = false; // indica si el juego está pausado
 
 // ------------------------------ FETCH UTILS ---------------------------------
 async function fetchJson(url) {
@@ -428,7 +430,7 @@ function render() {
         </button>
       `).join('')
     : `<span class="muted">No tienes bayas en inventario. Compra en la Tienda.</span>`;
-  qsa('[data-food]').forEach(btn => { btn.onclick = () => pet.viva && alimentar(btn.dataset.food); });
+  qsa('[data-food]').forEach(btn => { btn.onclick = () => pet.viva && !paused && alimentar(btn.dataset.food); });
 
   const inv = byId('inventario');
   inv.innerHTML = comidas.map(c => {
@@ -575,13 +577,38 @@ function mostrarInstrucciones() {
   });
 }
 
-// Botones Instrucciones (ambos casos: creación y borrado)
-byId('btnInstrucciones').addEventListener('click', mostrarInstrucciones);
-byId('btnInstruccionesBorrar').addEventListener('click', mostrarInstrucciones);
+// ------------------------------ PAUSA ---------------------------------------
+function setPausedUI() {
+  const btnPausa = byId('btnPausa');
+  const btnJugar = byId('btnJugar');
+  const btnPasar = byId('btnPasar');
+
+  if (btnPausa) btnPausa.textContent = paused ? 'Reanudar' : 'Pausa';
+  if (btnJugar) btnJugar.disabled = paused;
+  if (btnPasar) btnPasar.disabled = paused;
+}
+
+function togglePausa() {
+  if (!pet || !pet.viva) return;
+
+  if (!paused) {
+    detenerTiempo();
+    paused = true;
+    log('⏸ Juego en pausa.');
+    toast('⏸ Pausado');
+  } else {
+    paused = false;
+    iniciarTiempo();
+    log('▶ Juego reanudado.');
+    toast('▶ Reanudado');
+  }
+  setPausedUI();
+}
 
 // ------------------------------ TIEMPO --------------------------------------
 function iniciarTiempo() {
   if (timer) clearInterval(timer);
+  if (paused) return; // no iniciar si está pausado
   timer = setInterval(pasarTiempo, CONFIG.tickSegundos * 1000);
 }
 function detenerTiempo() {
@@ -609,6 +636,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const saved = load();
   if (saved) {
     pet = saved;
+    paused = false;
     qs('#game').style.display = '';
     if (!pet.inventory) pet.inventory = {};
     if (typeof pet.money !== 'number') pet.money = CONFIG.dineroInicial;
@@ -616,6 +644,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     render();
     iniciarTiempo();
     mostrarSoloBorrarGuardado();
+    setPausedUI();
   } else {
     mostrarCreacion();
   }
@@ -632,12 +661,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     pet = new Mascota(pretty, sprite);
     inicializarInventario();
 
+    paused = false;
     save(pet);
     qs('#game').style.display = '';
     render();
     iniciarTiempo();
     log(`¡Ha nacido tu nueva mascota: ${pet.nombre}!`);
     mostrarSoloBorrarGuardado();
+    setPausedUI();
 
     // Mostrar instrucciones en el primer arranque del navegador
     const firstShown = localStorage.getItem(KEY_FIRST_RUN);
@@ -661,17 +692,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     clearSave(); detenerTiempo();
     pet = null; carrito = {};
+    paused = false;
     qs('#game').style.display = 'none';
     toast('Guardado eliminado.');
     mostrarCreacion();
+    setPausedUI();
   });
 
   // Jugar
-  byId('btnJugar').addEventListener('click', () => pet && pet.viva && jugar());
+  byId('btnJugar').addEventListener('click', () => pet && pet.viva && !paused && jugar());
 
   // Pasar tiempo = tick real + resumen + anti-spam
   byId('btnPasar').addEventListener('click', (e) => {
-    if (!pet || !pet.viva) return;
+    if (!pet || !pet.viva || paused) return;
     const btn = e.currentTarget;
 
     btn.disabled = true;                 // anti-spam
@@ -694,4 +727,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Carrito
   byId('btnVaciarCarrito').addEventListener('click', () => { carrito = {}; renderCatalogo(); renderCarrito(); });
   byId('btnComprar').addEventListener('click', comprarCarrito);
+
+  // Pausa/Reanudar
+  const btnPausa = byId('btnPausa');
+  if (btnPausa) btnPausa.addEventListener('click', togglePausa);
 });
